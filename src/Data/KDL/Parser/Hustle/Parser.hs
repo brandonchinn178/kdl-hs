@@ -11,6 +11,8 @@ import           Control.Monad                  ( void )
 import           Data.Char                      ( chr
                                                 , isHexDigit
                                                 , isOctDigit
+                                                , isDigit
+                                                , isSpace
                                                 )
 import qualified Data.Map.Strict               as Map
 import           Data.Maybe                     ( catMaybes
@@ -95,10 +97,19 @@ hspacechar = label "Unicode Space" $ do
 -- STRINGS
 
 anystring :: Parser Text
-anystring = try rawstring <|> escstring
+anystring = try unquotedstring <|> try rawstring <|> quotedstring
 
-escstring :: Parser Text
-escstring = label "String" $ do
+unquotedstring :: Parser Text
+unquotedstring = label "Unquoted String" $ do
+  c0 <- satisfy $ \c -> isValidChar c && not (isDigit c) && c /= '"'
+  rest <- many $ satisfy isValidChar
+  -- TODO: Forbid true, false, null, inf, -inf, nan, or "looks like a number"
+  pure $ T.pack (c0 : rest)
+  where
+    isValidChar c = not (isSpace c) && c `notElem` ("[]{}()\\/#\";=" :: [Char])
+
+quotedstring :: Parser Text
+quotedstring = label "Quoted String" $ do
   T.concat <$> (char '"' *> manyTill character (char '"'))
 
 rawstring :: Parser Text
