@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 {- | Vendered from https://github.com/fuzzypixelz/hustle -}
 module Data.KDL.Parser.Hustle.Formatter

@@ -19,7 +19,6 @@ import           Text.Megaparsec                ( (<|>)
                                                   , takeWhileP
                                                   , try
                                                   )
-                                                , manyTill_
                                                 , option
                                                 , runParser
                                                 , satisfy
@@ -93,4 +92,4 @@ escChar c = case c of
   '\x22' -> "\\\""
   '\x2F' -> "\\/"
   '\x5C' -> "\\\\"
-  c      -> T.singleton c
+  _      -> T.singleton c
