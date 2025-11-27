@@ -23,6 +23,7 @@ library
   hs-source-dirs: src
   exposed-modules:
     Data.KDL
+    Data.KDL.Types
   other-modules:
     Data.KDL.Parser.Hustle
     Data.KDL.Parser.Hustle.Formatter
