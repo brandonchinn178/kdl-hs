@@ -16,6 +16,13 @@ module Data.KDL.Types (
   fromNodeList,
   nodeListFormat,
 
+  -- ** Helpers
+  filterNodes,
+  lookupNode,
+  getArgAt,
+  getArgsAt,
+  getDashNodesAt,
+
   -- * Node
   Node,
   BaseNode (..),
@@ -24,6 +31,12 @@ module Data.KDL.Types (
   nodeEntries,
   nodeChildren,
   nodeFormat,
+
+  -- ** Helpers
+  getArgs,
+  getArg,
+  getProps,
+  getProp,
 
   -- * Entry
   Entry (..),
@@ -50,6 +63,10 @@ module Data.KDL.Types (
   identifierFormat,
 ) where
 
+import Control.Monad ((<=<))
+import Data.Map (Map)
+import Data.Map qualified as Map
+import Data.Maybe (listToMaybe)
 import Data.Scientific (Scientific)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -82,6 +99,62 @@ fromNodeList = (.nodes)
 
 nodeListFormat :: NodeList -> Maybe NodeListFormat
 nodeListFormat = (.format)
+
+-- | A helper to get all nodes with the given name
+filterNodes :: Text -> NodeList -> [Node]
+filterNodes name = filter ((== name) . (.obj.name.value)) . (.nodes)
+
+-- | A helper to get the first node with the given name
+lookupNode :: Text -> NodeList -> Maybe Node
+lookupNode name = listToMaybe . filterNodes name
+
+-- | A helper to get the first argument of the first node with the given name.
+-- A utility for nodes that are acting like a key-value store.
+--
+-- === Example
+--
+-- @
+-- foo 1
+-- @
+--
+-- @
+-- getArgAt "foo" doc == Just (Number 1)
+-- @
+getArgAt :: Text -> NodeList -> Maybe Value
+getArgAt name = listToMaybe . getArgsAt name
+
+-- | A helper to get all the arguments of the first node with the given name.
+-- A utility for nodes that are acting like a key-value store with a list of values.
+--
+-- === Example
+--
+-- @
+-- foo 1 2 #false
+-- @
+--
+-- @
+-- getArgsAt "foo" doc == [Number 1, Number 2, Bool False]
+-- @
+getArgsAt :: Text -> NodeList -> [Value]
+getArgsAt name = maybe [] getArgs . lookupNode name
+
+-- | A helper for getting child nodes following the KDL convention of being named "-".
+--
+-- === Example
+--
+-- @
+-- foo {
+--   - 1
+--   - 2
+--   - #false
+-- }
+-- @
+--
+-- @
+-- map getArg (getDashArgsAt "foo" doc) == [Number 1, Number 2, Bool False]
+-- @
+getDashNodesAt :: Text -> NodeList -> [Node]
+getDashNodesAt name = maybe [] (filterNodes "-") . (nodeChildren <=< lookupNode name)
 
 {----- Ann -----}
 
@@ -138,17 +211,40 @@ data NodeFormat = NodeFormat
   }
   deriving (Show, Eq)
 
-nodeName :: BaseNode -> Identifier
-nodeName = (.name)
+nodeName :: Node -> Identifier
+nodeName = (.obj.name)
 
-nodeEntries :: BaseNode -> [Entry]
-nodeEntries = (.entries)
+nodeEntries :: Node -> [Entry]
+nodeEntries = (.obj.entries)
 
-nodeChildren :: BaseNode -> Maybe NodeList
-nodeChildren = (.children)
+nodeChildren :: Node -> Maybe NodeList
+nodeChildren = (.obj.children)
 
-nodeFormat :: BaseNode -> Maybe NodeFormat
-nodeFormat = (.format)
+nodeFormat :: Node -> Maybe NodeFormat
+nodeFormat = (.obj.format)
+
+-- | Get all the positional arguments of the node.
+getArgs :: Node -> [Value]
+getArgs node =
+  [ value
+  | Entry{name = Nothing, value} <- node.obj.entries
+  ]
+
+-- | Get the first argument of the node.
+getArg :: Node -> Maybe Value
+getArg = listToMaybe . getArgs
+
+-- | Get the properties of the node.
+getProps :: Node -> Map Text Value
+getProps node =
+  Map.fromList
+    [ (name.value, value)
+    | Entry{name = Just name, value} <- node.obj.entries
+    ]
+
+-- | Get the property with the given name in the node.
+getProp :: Text -> Node -> Maybe Value
+getProp name = Map.lookup name . getProps
 
 {----- Entry -----}
 
