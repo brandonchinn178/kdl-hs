@@ -23,6 +23,8 @@ library
   hs-source-dirs: src
   exposed-modules:
     Data.KDL
+    Data.KDL.Decoder.Arrow
+    Data.KDL.Decoder.DecodeM
     Data.KDL.Parser
     Data.KDL.Types
   other-modules:

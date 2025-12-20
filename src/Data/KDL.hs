@@ -9,6 +9,24 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
+{-
+===== Serialization
+render :: Document -> Text
+
+===== Decoder API
+decodeWith :: DocumentDecoder a -> Text -> Either DecodeError a
+schema :: Decoder a b -> SchemaOf a
+document :: NodesDecoder a -> DocumentDecoder a
+node :: Identifier -> NodeDecoder a -> WithCountSpec (NodesDecoder [a])
+arg :: DecodeValue a => WithCountSpec (NodeDecoder [a])
+prop :: DecodeValue a => Identifier -> NodeDecoder a
+propOpt :: DecodeValue a => Identifier -> NodeDecoder (Maybe a)
+children :: NodesDecoder a -> NodeDecoder a
+
+decodeValue :: DecodeValue a => Value -> Either DecodeError a
+decodeValue = runDecoder valueDecoder
+-}
+
 module Data.KDL (
   Document,
   Ann (..),

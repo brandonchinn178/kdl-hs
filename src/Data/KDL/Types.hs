@@ -1,9 +1,9 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE NoFieldSelectors #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NoFieldSelectors #-}
 
 module Data.KDL.Types (
   -- * Document
@@ -21,6 +21,7 @@ module Data.KDL.Types (
   lookupNode,
   getArgAt,
   getArgsAt,
+  getDashChildrenAt,
   getDashNodesAt,
 
   -- * Node
@@ -66,7 +67,7 @@ module Data.KDL.Types (
 import Control.Monad ((<=<))
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Data.Maybe (listToMaybe)
+import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Scientific (Scientific)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -111,13 +112,15 @@ lookupNode name = listToMaybe . filterNodes name
 -- | A helper to get the first argument of the first node with the given name.
 -- A utility for nodes that are acting like a key-value store.
 --
--- === Example
+-- == __Example__
 --
 -- @
--- foo 1
--- @
---
--- @
+-- let
+--   config =
+--     """
+--     foo 1
+--     """
+-- Right doc <- pure $ parse config
 -- getArgAt "foo" doc == Just (Number 1)
 -- @
 getArgAt :: Text -> NodeList -> Maybe Value
@@ -126,32 +129,56 @@ getArgAt name = listToMaybe . getArgsAt name
 -- | A helper to get all the arguments of the first node with the given name.
 -- A utility for nodes that are acting like a key-value store with a list of values.
 --
--- === Example
+-- == __Example__
 --
 -- @
--- foo 1 2 #false
--- @
---
--- @
+-- let
+--   config =
+--     """
+--     foo 1 2 #false
+--     """
+-- Right doc <- pure $ parse config
 -- getArgsAt "foo" doc == [Number 1, Number 2, Bool False]
 -- @
 getArgsAt :: Text -> NodeList -> [Value]
 getArgsAt name = maybe [] getArgs . lookupNode name
 
+-- | A helper for getting child values following the KDL convention of being named "-".
+--
+-- == __Example__
+--
+-- @
+-- let
+--   config =
+--     """
+--     foo {
+--       - 1
+--       - 2
+--       - #false
+--     }
+--     """
+-- Right doc <- pure $ parse config
+-- getDashNodesAt "foo" doc == [Number 1, Number 2, Bool False]
+-- @
+getDashChildrenAt :: Text -> NodeList -> [Value]
+getDashChildrenAt name = mapMaybe getArg . getDashNodesAt name
+
 -- | A helper for getting child nodes following the KDL convention of being named "-".
 --
--- === Example
+-- == __Example__
 --
 -- @
--- foo {
---   - 1
---   - 2
---   - #false
--- }
--- @
---
--- @
--- map getArg (getDashArgsAt "foo" doc) == [Number 1, Number 2, Bool False]
+-- let
+--   config =
+--     """
+--     foo {
+--       - 1
+--       - 2
+--       - #false
+--     }
+--     """
+-- Right doc <- pure $ parse config
+-- map getArg (getDashNodesAt "foo" doc) == [Just (Number 1), Just (Number 2), Just (Bool False)]
 -- @
 getDashNodesAt :: Text -> NodeList -> [Node]
 getDashNodesAt name = maybe [] (filterNodes "-") . (nodeChildren <=< lookupNode name)
