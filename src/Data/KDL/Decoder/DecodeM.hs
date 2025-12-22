@@ -8,7 +8,7 @@ module Data.KDL.Decoder.DecodeM (
   Context,
   ContextItem (..),
   decodeThrow,
-  fail,
+  failM,
   addContext,
   runDecodeM,
   renderDecodeError,
@@ -27,7 +27,6 @@ import Data.Typeable (
   TypeRep,
  )
 import Numeric.Natural (Natural)
-import Prelude hiding (fail)
 
 type Context = [ContextItem]
 
@@ -67,14 +66,14 @@ instance Monad DecodeM where
   DecodeM ka >>= k = DecodeM $ \onFail onSuccess ->
     ka onFail $ \a -> let DecodeM kb = k a in kb onFail onSuccess
 instance Alternative DecodeM where
-  empty = fail "<empty>"
+  empty = failM "<empty>"
   DecodeM k1 <|> DecodeM k2 = DecodeM $ \onFail onSuccess -> k1 (\_ _ -> k2 onFail onSuccess) onSuccess
 
 decodeThrow :: BaseDecodeError -> DecodeM a
 decodeThrow e = DecodeM $ \onFail _ -> onFail [] e
 
-fail :: Text -> DecodeM a
-fail = decodeThrow . DecodeError_Custom
+failM :: Text -> DecodeM a
+failM = decodeThrow . DecodeError_Custom
 
 addContext :: ContextItem -> DecodeM a -> DecodeM a
 addContext ctxItem (DecodeM f) = DecodeM $ \onFail onSuccess -> f (onFail . (ctxItem :)) onSuccess

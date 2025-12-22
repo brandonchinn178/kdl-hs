@@ -22,7 +22,7 @@ module Data.KDL.Decoder.Monad (
   Decoder,
   DecodeError (..),
   module Data.KDL.Decoder.DecodeM,
-  failDecoder,
+  fail,
 
   -- * Decode type classes
   withoutSchema,
@@ -113,6 +113,7 @@ import Data.KDL.Types (
 import Data.Map (Map)
 import Data.Text (Text)
 import Data.Typeable (Typeable)
+import Prelude hiding (fail)
 
 decodeWith :: forall a. DocumentDecoder a -> Text -> Either DecodeError a
 decodeWith = coerce (Arrow.decodeWith @a)
@@ -149,8 +150,8 @@ instance Monad (Decoder o) where
 withoutSchema :: Decoder o a -> Arrow.Decoder o () a
 withoutSchema (Decoder decoder) = decoder
 
-failDecoder :: forall a o. Text -> Decoder o a
-failDecoder msg = coerce (Arrow.arr (\() -> msg) Arrow.>>> Arrow.failDecoder @a)
+fail :: forall a o. Text -> Decoder o a
+fail msg = coerce (Arrow.arr (\() -> msg) Arrow.>>> Arrow.fail @a)
 
 {----- DocumentDecoder -----}
 

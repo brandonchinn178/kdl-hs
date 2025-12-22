@@ -26,7 +26,7 @@ module Data.KDL.Decoder.Arrow (
   Decoder,
   DecodeError (..),
   module Data.KDL.Decoder.DecodeM,
-  failDecoder,
+  fail,
 
   -- * Document
   DocumentDecoder (..),
@@ -111,7 +111,7 @@ import Data.KDL.Decoder.DecodeM (
   DecodeError (..),
   DecodeM,
   decodeThrow,
-  fail,
+  failM,
   runDecodeM,
  )
 import Data.KDL.Decoder.Schema (
@@ -226,8 +226,8 @@ withDecoder decoder f = decoder >>> liftDecodeM f
 -- schema of @o@.
 type Decoder = DecodeArrow
 
-failDecoder :: forall b o. Decoder o Text b
-failDecoder = liftDecodeM fail
+fail :: forall b o. Decoder o Text b
+fail = liftDecodeM failM
 
 {----- DocumentDecoder -----}
 
@@ -641,9 +641,9 @@ instance DecodeBaseValue Int64 where
   baseValueTypeAnns _ = ["i64"]
   baseValueDecoder = withDecoder number $ \x -> do
     unless (Scientific.isInteger x) $
-      fail $
+      failM $
         "Expected integer, got: " <> (Text.pack . show) x
-    maybe (fail $ "Number is too large: " <> (Text.pack . show) x) pure $
+    maybe (failM $ "Number is too large: " <> (Text.pack . show) x) pure $
       Scientific.toBoundedInteger @Int64 x
 instance DecodeBaseValue Scientific where -- FIXME: Add Double, Float, Rational
   baseValueTypeAnns _ = ["f32", "f64", "decimal64", "decimal128"]
