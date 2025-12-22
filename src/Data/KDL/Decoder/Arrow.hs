@@ -623,6 +623,9 @@ class (Typeable a) => DecodeBaseValue a where
 
 instance DecodeBaseValue BaseValue where
   baseValueDecoder = any
+instance DecodeBaseValue Text where
+  baseValueTypeAnns _ = ["string", "text"]
+  baseValueDecoder = text
 instance DecodeBaseValue Integer where -- FIXME: Add Word8, Int8, ...
   baseValueTypeAnns _ = ["i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", "isize", "usize"]
   baseValueDecoder = toInteger <$> baseValueDecoder @Int64
