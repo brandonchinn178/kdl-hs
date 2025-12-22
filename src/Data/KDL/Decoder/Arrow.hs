@@ -16,16 +16,17 @@ decoder's schema, e.g. to generate documentation.
 
 === Quickstart
 
-FIXME
+FIXME: quickstart
 -}
 module Data.KDL.Decoder.Arrow (
   Decoder,
   decodeWith,
   decodeFileWith,
   DecodeError (..),
+  module Data.KDL.Decoder.DecodeM,
 
   -- * Document
-  DocumentDecoder,
+  DocumentDecoder (..),
   document,
   documentSchema,
 
@@ -152,7 +153,7 @@ decodeFileWith :: DocumentDecoder a -> FilePath -> IO (Either DecodeError a)
 decodeFileWith decoder = fmap (decodeFromParseResult decoder) . parseFile
 
 decodeFromParseResult :: DocumentDecoder a -> Either Text Document -> Either DecodeError a
-decodeFromParseResult (DocumentDecoder decoder) = \case
+decodeFromParseResult (UnsafeDocumentDecoder decoder) = \case
   Left e -> Left . DecodeError [] $ DecodeError_ParseError e
   Right doc -> runDecoder decoder doc
 
@@ -229,6 +230,7 @@ data Schema a
   | SchemaSome (Schema a)
   | SchemaAnd [Schema a]
   | SchemaOr [Schema a]
+  | SchemaUnknown
   deriving (Show, Eq)
 
 data family SchemaItem a
@@ -280,11 +282,11 @@ schemaAlt = curry $ \case
 
 {----- DocumentDecoder -----}
 
-newtype DocumentDecoder a = DocumentDecoder (NodeListDecoder a)
+newtype DocumentDecoder a = UnsafeDocumentDecoder (NodeListDecoder a)
 
 document :: NodeListDecoder a -> DocumentDecoder a
 document decoder =
-  DocumentDecoder
+  UnsafeDocumentDecoder
     decoder
       { run = \(nodeList, ()) -> do
           (nodeList', a) <- decoder.run (nodeList, ())
@@ -293,7 +295,7 @@ document decoder =
       }
 
 documentSchema :: DocumentDecoder a -> SchemaOf NodeList
-documentSchema (DocumentDecoder decoder) = decoder.schema
+documentSchema (UnsafeDocumentDecoder decoder) = decoder.schema
 
 {----- NodeListDecoder -----}
 
@@ -346,7 +348,7 @@ nodeAt name = nodeAtWith name node
 --     (Dog)person "Fido"
 --     """
 --   decoder = KDL.document $ proc () -> do
---     many . KDL.nodeAtWith "person" $ KDL.nodeWith ["Person"] $ KDL.arg -< ()
+--     many . KDL.nodeAtWith "person" . KDL.nodeWith ["Person"] $ KDL.arg -< ()
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob", "Charlie", "Danielle"]
 -- @
 nodeAtWith :: Text -> NodeDecoder a -> NodeListDecoder a
@@ -398,7 +400,7 @@ remainingNodes = remainingNodesWith node
 --     lint "pkg1"
 --     """
 --   decoder = KDL.document $ proc () -> do
---     KDL.remainingNodes $ KDL.nodeWith [] $ KDL.arg -< ()
+--     KDL.remainingNodes . KDL.nodeWith [] $ KDL.arg -< ()
 -- KDL.decodeWith decoder config == Right (Map.fromList [("build", ["pkg1", "pkg2"]), ("lint", ["pkg1"])])
 -- @
 remainingNodesWith :: NodeDecoder a -> NodeListDecoder (Map Text [a])
@@ -494,7 +496,7 @@ dashChildrenAtWith name decoder = dashNodesAtWith name $ nodeWith [] $ argWith d
 -- @
 -- instance KDL.DecodeBaseNode Attendee where
 --   baseNodeDecoder = proc () -> do
---     name <- KDL.arg -<
+--     name <- KDL.arg -< ()
 --     returnA -< Attendee{..}
 --
 -- let

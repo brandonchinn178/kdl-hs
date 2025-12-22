@@ -25,7 +25,9 @@ library
     Data.KDL
     Data.KDL.Decoder.Arrow
     Data.KDL.Decoder.DecodeM
+    Data.KDL.Decoder.Monad
     Data.KDL.Parser
+    Data.KDL.Render
     Data.KDL.Types
   other-modules:
     Data.KDL.Parser.Hustle
@@ -43,6 +45,7 @@ library
   default-language: GHC2021
   ghc-options: -Wall -Wcompat
 
+-- FIXME: add tests
 -- test-suite skeletest-tests
 --   type: exitcode-stdio-1.0
 --   ghc-options: -F -pgmF=skeletest-preprocessor
