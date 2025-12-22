@@ -94,7 +94,6 @@ module Data.KDL.Decoder.Monad (
 import Control.Applicative (Alternative)
 import Control.Arrow qualified as Arrow
 import Data.Coerce (coerce)
-import Data.KDL.Decoder.Arrow (DecodeArrow (..))
 import Data.KDL.Decoder.Arrow qualified as Arrow
 import Data.KDL.Decoder.DecodeM (
   DecodeError (..),
@@ -130,7 +129,7 @@ decodeFileWith = coerce (Arrow.decodeFileWith @a)
 -- useful for do-notation. The only downside of using this over Arrow.Decoder is you don't
 -- get a statically derived schema of the entire document. If you want that, you must use
 -- either arrows notation with the Arrow 'Arrow.Decoder' or use do-notation with 'ApplicativeDo'.
-newtype Decoder o a = Decoder (Arrow.DecodeArrow o () a)
+newtype Decoder o a = Decoder (Arrow.Decoder o () a)
   deriving
     ( Functor
     , Applicative
@@ -138,10 +137,10 @@ newtype Decoder o a = Decoder (Arrow.DecodeArrow o () a)
     )
 
 instance Monad (Decoder o) where
-  Decoder (DecodeArrow _ run1) >>= k =
-    Decoder . DecodeArrow SchemaUnknown $ \(o0, a) -> do
+  Decoder (Arrow.Decoder _ run1) >>= k =
+    Decoder . Arrow.Decoder SchemaUnknown $ \(o0, a) -> do
       (o1, x) <- run1 (o0, a)
-      let Decoder (DecodeArrow _ run2) = k x
+      let Decoder (Arrow.Decoder _ run2) = k x
       run2 (o1, a)
 
 -- | Drop the Monad Decoder back down to an Arrow Decoder.Content.

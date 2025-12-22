@@ -23,7 +23,7 @@ module Data.KDL.Decoder.Arrow (
   decodeFileWith,
 
   -- * Decoder
-  Decoder,
+  Decoder (..),
   DecodeError (..),
   module Data.KDL.Decoder.DecodeM,
   fail,
@@ -91,9 +91,6 @@ module Data.KDL.Decoder.Arrow (
   optional,
   option,
   some,
-
-  -- * Low-level API
-  DecodeArrow (..),
 ) where
 
 import Control.Applicative (
@@ -159,73 +156,64 @@ decodeFromParseResult (UnsafeDocumentDecoder decoder) = \case
   Left e -> Left . DecodeError [] $ DecodeError_ParseError e
   Right doc -> runDecodeM $ snd <$> decoder.run (doc, ())
 
-{----- DecodeArrow -----}
+{----- Decoder -----}
 
--- | The generic arrow for decoding a KDL document.
---
---   * o - The KDL object being decoded
---   * a - The input of the arrow (usually @()@)
---   * b - The output of the arrow
+-- | @Decoder o a b@ represents an arrow with input @a@ and output @b@, within
+-- the context of decoding a KDL object of type @o@. It also knows the expected
+-- schema of @o@.
 --
 -- We're using arrows here so that we can:
 --   1. Get the schema without running the decoder, and also
 --   2. Use previously decoded values to inform decoding other values
 --
 -- Using monads alone would lose (1), but applicatives can't do (2).
-data DecodeArrow o a b = DecodeArrow
+data Decoder o a b = Decoder
   { schema :: SchemaOf o
   , run :: (o, a) -> DecodeM (o, b)
   }
 
-instance Category (DecodeArrow o) where
+instance Category (Decoder o) where
   id = liftDecodeM pure
-  DecodeArrow s1 bc . DecodeArrow s2 ab = DecodeArrow (s1 `schemaJoin` s2) $ ab >=> bc
-instance Arrow (DecodeArrow o) where
+  Decoder s1 bc . Decoder s2 ab = Decoder (s1 `schemaJoin` s2) $ ab >=> bc
+instance Arrow (Decoder o) where
   arr f = liftDecodeM (pure . f)
-  DecodeArrow s1 bc *** DecodeArrow s2 bc' =
-    DecodeArrow (s1 `schemaJoin` s2) $ \(o0, (b, b')) -> do
+  Decoder s1 bc *** Decoder s2 bc' =
+    Decoder (s1 `schemaJoin` s2) $ \(o0, (b, b')) -> do
       (o1, c) <- bc (o0, b)
       (o2, c') <- bc' (o1, b')
       pure (o2, (c, c'))
-instance ArrowChoice (DecodeArrow o) where
-  DecodeArrow s1 bc +++ DecodeArrow s2 bc' =
-    DecodeArrow (s1 `schemaAlt` s2) $ \case
+instance ArrowChoice (Decoder o) where
+  Decoder s1 bc +++ Decoder s2 bc' =
+    Decoder (s1 `schemaAlt` s2) $ \case
       (o, Left b) -> (fmap . fmap) Left $ bc (o, b)
       (o, Right b') -> (fmap . fmap) Right $ bc' (o, b')
 
-instance Functor (DecodeArrow o a) where
-  fmap f (DecodeArrow schema run) = DecodeArrow schema $ ((fmap . fmap) f . run)
-instance Applicative (DecodeArrow o a) where
+instance Functor (Decoder o a) where
+  fmap f (Decoder schema run) = Decoder schema $ ((fmap . fmap) f . run)
+instance Applicative (Decoder o a) where
   pure = arr . const
-  DecodeArrow s1 kf <*> DecodeArrow s2 kx =
-    DecodeArrow (s1 `schemaJoin` s2) $ \(o0, a) -> do
+  Decoder s1 kf <*> Decoder s2 kx =
+    Decoder (s1 `schemaJoin` s2) $ \(o0, a) -> do
       (o1, f) <- kf (o0, a)
       (o2, x) <- kx (o1, a)
       pure (o2, f x)
-instance Alternative (DecodeArrow o a) where
-  empty = DecodeArrow (SchemaOr []) (traverse $ \_ -> empty)
-  DecodeArrow s1 run1 <|> DecodeArrow s2 run2 = DecodeArrow (s1 `schemaAlt` s2) $ \x -> run1 x <|> run2 x
-  some (DecodeArrow s run) =
-    DecodeArrow (SchemaSome s) $
+instance Alternative (Decoder o a) where
+  empty = Decoder (SchemaOr []) (traverse $ \_ -> empty)
+  Decoder s1 run1 <|> Decoder s2 run2 = Decoder (s1 `schemaAlt` s2) $ \x -> run1 x <|> run2 x
+  some (Decoder s run) =
+    Decoder (SchemaSome s) $
       let go (o0, a) = do
             (o1, x) <- run (o0, a)
             (o2, xs) <- go (o1, a) <|> pure (o1, [])
             pure (o2, x : xs)
        in go
-  many (DecodeArrow s run) = empty <|> some (DecodeArrow s run)
+  many (Decoder s run) = empty <|> some (Decoder s run)
 
-liftDecodeM :: (a -> DecodeM b) -> DecodeArrow o a b
-liftDecodeM f = DecodeArrow (SchemaAnd []) (traverse f)
+liftDecodeM :: (a -> DecodeM b) -> Decoder o a b
+liftDecodeM f = Decoder (SchemaAnd []) (traverse f)
 
-withDecoder :: DecodeArrow o a b -> (b -> DecodeM c) -> DecodeArrow o a c
+withDecoder :: Decoder o a b -> (b -> DecodeM c) -> Decoder o a c
 withDecoder decoder f = decoder >>> liftDecodeM f
-
-{----- Decoder -----}
-
--- | @Decoder o a b@ represents an arrow with input @a@ and output @b@, within
--- the context of decoding a KDL object of type @o@. It also knows the expected
--- schema of @o@.
-type Decoder = DecodeArrow
 
 fail :: forall b o. Decoder o Text b
 fail = liftDecodeM failM
@@ -304,7 +292,7 @@ nodeAt name = nodeAtWith name node
 nodeAtWith :: Text -> NodeDecoder a b -> NodeListDecoder a b
 -- TODO: Detect duplicate `node` calls with the same name and fail to build a decoder
 nodeAtWith name decoder =
-  DecodeArrow (SchemaOne $ NodeNamed name decoder.schema) $ \(nodeList, a) -> do
+  Decoder (SchemaOne $ NodeNamed name decoder.schema) $ \(nodeList, a) -> do
     (node_, nodes) <-
       maybe (decodeThrow $ DecodeError_ExpectedNode name) pure $
         extractFirst ((== name) . (.obj.name.value)) nodeList.nodes
@@ -354,7 +342,7 @@ remainingNodes = remainingNodesWith node
 remainingNodesWith :: NodeDecoder a b -> NodeListDecoder a (Map Text [b])
 -- TODO: Detect duplicate `remainingNodes` calls and fail to build a decoder
 remainingNodesWith decoder =
-  DecodeArrow (SchemaOne $ RemainingNodes decoder.schema) $ \(nodeList, a) -> do
+  Decoder (SchemaOne $ RemainingNodes decoder.schema) $ \(nodeList, a) -> do
     nodeMap <-
       fmap (Map.fromListWith (<>)) . forM nodeList.nodes $ \node_ -> do
         (_, b) <- decoder.run (node_, a)
@@ -496,7 +484,7 @@ annDecoder ::
   Decoder o a b ->
   Decoder (Ann o) a b
 annDecoder mkSchema mkError typeAnns decoder =
-  DecodeArrow (SchemaOne schema) $ \(x, a) -> do
+  Decoder (SchemaOne schema) $ \(x, a) -> do
     case x.ann of
       Just givenAnn -> do
         let isValidAnn = Prelude.null typeAnns || givenAnn.value `elem` typeAnns
@@ -556,7 +544,7 @@ arg = argWith value
 -- FIXME: document
 argWith :: forall a b. ValueDecoder a b -> BaseNodeDecoder a b
 argWith decoder =
-  DecodeArrow (SchemaOne $ NodeArg decoder.schema) $ \(baseNode, a) -> do
+  Decoder (SchemaOne $ NodeArg decoder.schema) $ \(baseNode, a) -> do
     (entry, entries) <-
       maybe (decodeThrow missingError) pure $
         extractFirst (isNothing . (.name)) baseNode.entries
@@ -572,7 +560,7 @@ prop name = propWith name value
 -- | FIXME: document
 propWith :: forall a b. Text -> ValueDecoder a b -> BaseNodeDecoder a b
 propWith name decoder =
-  DecodeArrow (SchemaOne $ NodeProp name decoder.schema) $ \(baseNode, a) -> do
+  Decoder (SchemaOne $ NodeProp name decoder.schema) $ \(baseNode, a) -> do
     let (props, entries) = partition (\entry -> ((.value) <$> entry.name) == Just name) baseNode.entries
     case NonEmpty.nonEmpty props of
       Nothing -> do
@@ -589,7 +577,7 @@ remainingProps = remainingPropsWith value
 -- | FIXME: document
 remainingPropsWith :: ValueDecoder a b -> BaseNodeDecoder a (Map Text b)
 remainingPropsWith decoder =
-  DecodeArrow (SchemaOne $ NodeRemainingProps decoder.schema) $ \(baseNode, a) -> do
+  Decoder (SchemaOne $ NodeRemainingProps decoder.schema) $ \(baseNode, a) -> do
     let (props, entries) = partitionEithers $ map getProp baseNode.entries
     result <-
       fmap Map.fromList . forM props $ \(name, prop_) -> do
@@ -605,7 +593,7 @@ remainingPropsWith decoder =
 -- | FIXME: document
 children :: forall a b. NodeListDecoder a b -> BaseNodeDecoder a b
 children decoder =
-  DecodeArrow (SchemaOne $ NodeChildren decoder.schema) $ \(baseNode, a) -> do
+  Decoder (SchemaOne $ NodeChildren decoder.schema) $ \(baseNode, a) -> do
     (children', result) <- decoder.run (fromMaybe emptyNodeList baseNode.children, a)
     pure (baseNode{children = children' <$ baseNode.children}, result)
  where
@@ -657,7 +645,7 @@ instance (DecodeBaseValue a) => DecodeBaseValue (Maybe a) where
   baseValueDecoder = oneOf [Nothing <$ null, Just <$> baseValueDecoder]
 
 baseValueDecoderPrim :: SchemaOf BaseValue -> (BaseValue -> DecodeM b) -> BaseValueDecoder a b
-baseValueDecoderPrim schema f = DecodeArrow schema $ \(v, _) -> (v,) <$> f v
+baseValueDecoderPrim schema f = Decoder schema $ \(v, _) -> (v,) <$> f v
 
 any :: BaseValueDecoder a BaseValue
 any = baseValueDecoderPrim (SchemaOr $ map SchemaOne [minBound .. maxBound]) pure
