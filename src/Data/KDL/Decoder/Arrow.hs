@@ -513,6 +513,7 @@ annDecoder mkSchema mkError typeAnns decoder =
               , validAnns = typeAnns
               }
       _ -> pure ()
+    -- FIXME: this suppresses error messages; instead, add typeHint to Context
     (obj, b) <- decoder.run (x.obj, a) <|> decodeThrow (mkError typeHint x)
     pure (x{obj = obj}, b)
  where
