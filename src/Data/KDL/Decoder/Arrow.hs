@@ -19,11 +19,14 @@ decoder's schema, e.g. to generate documentation.
 FIXME: quickstart
 -}
 module Data.KDL.Decoder.Arrow (
-  Decoder,
   decodeWith,
   decodeFileWith,
+  
+  -- * Decoder
+  Decoder,
   DecodeError (..),
   module Data.KDL.Decoder.DecodeM,
+  failDecoder,
 
   -- * Document
   DocumentDecoder (..),
@@ -144,13 +147,6 @@ import Data.Typeable (TypeRep, Typeable, typeRep)
 import Prelude hiding (any, fail, null)
 import Prelude qualified
 
-{----- Decoder entrypoint -----}
-
--- | @Decoder o a b@ represents an arrow with input @a@ and output @b@, within
--- the context of decoding a KDL object of type @o@. It also knows the expected
--- schema of @o@.
-type Decoder = DecodeArrow
-
 decodeWith :: DocumentDecoder a -> Text -> Either DecodeError a
 decodeWith decoder = decodeFromParseResult decoder . parse
 
@@ -222,6 +218,16 @@ liftDecodeM f = DecodeArrow (SchemaAnd []) (traverse f)
 
 withDecoder :: DecodeArrow o a b -> (b -> DecodeM c) -> DecodeArrow o a c
 withDecoder decoder f = decoder >>> liftDecodeM f
+
+{----- Decoder -----}
+
+-- | @Decoder o a b@ represents an arrow with input @a@ and output @b@, within
+-- the context of decoding a KDL object of type @o@. It also knows the expected
+-- schema of @o@.
+type Decoder = DecodeArrow
+
+failDecoder :: forall b o. Decoder o Text b
+failDecoder = liftDecodeM fail
 
 {----- DocumentDecoder -----}
 

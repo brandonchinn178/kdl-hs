@@ -15,11 +15,14 @@ schema, e.g. to generate documentation.
 FIXME: quickstart
 -}
 module Data.KDL.Decoder.Monad (
-  Decoder,
   decodeWith,
   decodeFileWith,
+  
+  -- * Decoder
+  Decoder,
   DecodeError (..),
   module Data.KDL.Decoder.DecodeM,
+  failDecoder,
 
   -- * Decode type classes
   withoutSchema,
@@ -89,6 +92,7 @@ module Data.KDL.Decoder.Monad (
 ) where
 
 import Control.Applicative (Alternative)
+import Control.Arrow qualified as Arrow
 import Data.Coerce (coerce)
 import Data.KDL.Decoder.Arrow (DecodeArrow (..))
 import Data.KDL.Decoder.Arrow qualified as Arrow
@@ -110,7 +114,13 @@ import Data.Map (Map)
 import Data.Text (Text)
 import Data.Typeable (Typeable)
 
-{----- Decoder entrypoint -----}
+decodeWith :: forall a. DocumentDecoder a -> Text -> Either DecodeError a
+decodeWith = coerce (Arrow.decodeWith @a)
+
+decodeFileWith :: forall a. DocumentDecoder a -> FilePath -> IO (Either DecodeError a)
+decodeFileWith = coerce (Arrow.decodeFileWith @a)
+
+{----- Decoder -----}
 
 -- | @Decoder o a@ represents an action that decodes a KDL object of type @o@ and returns
 -- a value of type @a@.
@@ -139,11 +149,8 @@ instance Monad (Decoder o) where
 withoutSchema :: Decoder o a -> Arrow.Decoder o () a
 withoutSchema (Decoder decoder) = decoder
 
-decodeWith :: forall a. DocumentDecoder a -> Text -> Either DecodeError a
-decodeWith = coerce (Arrow.decodeWith @a)
-
-decodeFileWith :: forall a. DocumentDecoder a -> FilePath -> IO (Either DecodeError a)
-decodeFileWith = coerce (Arrow.decodeFileWith @a)
+failDecoder :: forall a o. Text -> Decoder o a
+failDecoder msg = coerce (Arrow.arr (\() -> msg) Arrow.>>> Arrow.failDecoder @a)
 
 {----- DocumentDecoder -----}
 
