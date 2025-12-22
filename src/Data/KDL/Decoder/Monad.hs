@@ -119,7 +119,7 @@ import Data.Typeable (Typeable)
 -- useful for do-notation. The only downside of using this over Arrow.Decoder is you don't
 -- get a statically derived schema of the entire document. If you want that, you must use
 -- either arrows notation with the Arrow 'Arrow.Decoder' or use do-notation with 'ApplicativeDo'.
-newtype Decoder o a = Decoder (Arrow.Decoder o a)
+newtype Decoder o a = Decoder (Arrow.DecodeArrow o () a)
   deriving
     ( Functor
     , Applicative
@@ -136,7 +136,7 @@ instance Monad (Decoder o) where
 -- | Drop the Monad Decoder back down to an Arrow Decoder.Content.
 --
 -- See 'DecodeBaseNode' for more information.
-withoutSchema :: Decoder o a -> Arrow.Decoder o a
+withoutSchema :: Decoder o a -> Arrow.Decoder o () a
 withoutSchema (Decoder decoder) = decoder
 
 decodeWith :: forall a. DocumentDecoder a -> Text -> Either DecodeError a
@@ -205,7 +205,7 @@ nodeAt = coerce (Arrow.nodeAt @a)
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob", "Charlie", "Danielle"]
 -- @
 nodeAtWith :: forall a. Text -> NodeDecoder a -> NodeListDecoder a
-nodeAtWith = coerce (Arrow.nodeAtWith @a)
+nodeAtWith = coerce (Arrow.nodeAtWith @() @a)
 
 -- | Decode all remaining nodes with the given decoder.
 --
@@ -248,7 +248,7 @@ remainingNodes = coerce (Arrow.remainingNodes @a)
 -- KDL.decodeWith decoder config == Right (Map.fromList [("build", ["pkg1", "pkg2"]), ("lint", ["pkg1"])])
 -- @
 remainingNodesWith :: forall a. NodeDecoder a -> NodeListDecoder (Map Text [a])
-remainingNodesWith = coerce (Arrow.remainingNodesWith @a)
+remainingNodesWith = coerce (Arrow.remainingNodesWith @() @a)
 
 -- | A helper to decode the first argument of the first node with the given name.
 -- A utility for nodes that are acting like a key-value store.
@@ -324,7 +324,7 @@ dashChildrenAt = coerce (Arrow.dashChildrenAt @a)
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob"]
 -- @
 dashChildrenAtWith :: forall a. (Typeable a) => Text -> ValueDecoder a -> NodeListDecoder [a]
-dashChildrenAtWith = coerce (Arrow.dashChildrenAtWith @a)
+dashChildrenAtWith = coerce (Arrow.dashChildrenAtWith @() @a)
 
 -- | A helper for decoding child values in a list following the KDL convention of being named "-".
 --
@@ -369,7 +369,7 @@ dashNodesAt = coerce (Arrow.dashNodesAt @a)
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob"]
 -- @
 dashNodesAtWith :: forall a. (Typeable a) => Text -> NodeDecoder a -> NodeListDecoder [a]
-dashNodesAtWith = coerce (Arrow.dashNodesAtWith @a)
+dashNodesAtWith = coerce (Arrow.dashNodesAtWith @() @a)
 
 {----- NodeDecoder -----}
 
@@ -381,7 +381,7 @@ node = coerce (Arrow.node @a)
 
 -- | FIXME: document
 nodeWith :: forall a. (Typeable a) => [Text] -> BaseNodeDecoder a -> NodeDecoder a
-nodeWith = coerce (Arrow.nodeWith @a)
+nodeWith = coerce (Arrow.nodeWith @() @a)
 
 {----- BaseNodeDecoder -----}
 
@@ -393,7 +393,7 @@ arg = coerce (Arrow.arg @a)
 
 -- FIXME: document
 argWith :: forall a. ValueDecoder a -> BaseNodeDecoder a
-argWith = coerce (Arrow.argWith @a)
+argWith = coerce (Arrow.argWith @() @a)
 
 -- | FIXME: document
 prop :: forall a. (Arrow.DecodeBaseValue a) => Text -> BaseNodeDecoder a
@@ -401,7 +401,7 @@ prop = coerce (Arrow.prop @a)
 
 -- | FIXME: document
 propWith :: forall a. Text -> ValueDecoder a -> BaseNodeDecoder a
-propWith = coerce (Arrow.propWith @a)
+propWith = coerce (Arrow.propWith @() @a)
 
 -- | FIXME: document
 remainingProps :: forall a. (Arrow.DecodeBaseValue a) => BaseNodeDecoder (Map Text a)
@@ -409,11 +409,11 @@ remainingProps = coerce (Arrow.remainingProps @a)
 
 -- | FIXME: document
 remainingPropsWith :: forall a. ValueDecoder a -> BaseNodeDecoder (Map Text a)
-remainingPropsWith = coerce (Arrow.remainingPropsWith @a)
+remainingPropsWith = coerce (Arrow.remainingPropsWith @() @a)
 
 -- | FIXME: document
 children :: forall a. NodeListDecoder a -> BaseNodeDecoder a
-children = coerce (Arrow.children @a)
+children = coerce (Arrow.children @() @a)
 
 {----- ValueDecoder -----}
 
@@ -425,7 +425,7 @@ value = coerce (Arrow.value @a)
 
 -- | FIXME: document
 valueWith :: forall a. (Typeable a) => [Text] -> BaseValueDecoder a -> ValueDecoder a
-valueWith = coerce (Arrow.valueWith @a)
+valueWith = coerce (Arrow.valueWith @() @a)
 
 {----- BaseValueDecoder -----}
 
