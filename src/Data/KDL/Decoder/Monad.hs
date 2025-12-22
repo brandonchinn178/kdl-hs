@@ -95,6 +95,10 @@ import Data.KDL.Decoder.Arrow qualified as Arrow
 import Data.KDL.Decoder.DecodeM (
   DecodeError (..),
  )
+import Data.KDL.Decoder.Schema (
+  Schema (..),
+  SchemaOf,
+ )
 import Data.KDL.Types (
   BaseNode,
   BaseValue,
@@ -124,7 +128,7 @@ newtype Decoder o a = Decoder (Arrow.Decoder o a)
 
 instance Monad (Decoder o) where
   Decoder (DecodeArrow _ run1) >>= k =
-    Decoder . DecodeArrow Arrow.SchemaUnknown $ \(o0, a) -> do
+    Decoder . DecodeArrow SchemaUnknown $ \(o0, a) -> do
       (o1, x) <- run1 (o0, a)
       let Decoder (DecodeArrow _ run2) = k x
       run2 (o1, a)
@@ -148,7 +152,7 @@ newtype DocumentDecoder a = DocumentDecoder (NodeListDecoder a)
 document :: forall a. NodeListDecoder a -> DocumentDecoder a
 document = coerce (Arrow.document @a)
 
-documentSchema :: forall a. DocumentDecoder a -> Arrow.SchemaOf NodeList
+documentSchema :: forall a. DocumentDecoder a -> SchemaOf NodeList
 documentSchema = coerce (Arrow.documentSchema @a)
 
 {----- NodeListDecoder -----}
