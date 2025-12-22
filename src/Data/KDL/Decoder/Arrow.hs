@@ -21,12 +21,13 @@ FIXME: quickstart
 module Data.KDL.Decoder.Arrow (
   decodeWith,
   decodeFileWith,
-  
+
   -- * Decoder
   Decoder,
   DecodeError (..),
   module Data.KDL.Decoder.DecodeM,
   fail,
+  withDecoder,
 
   -- * Document
   DocumentDecoder (..),
