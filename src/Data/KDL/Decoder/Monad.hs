@@ -23,6 +23,7 @@ module Data.KDL.Decoder.Monad (
   DecodeError (..),
   module Data.KDL.Decoder.DecodeM,
   fail,
+  debug,
 
   -- * Decode type classes
   withoutSchema,
@@ -151,6 +152,9 @@ withoutSchema (Decoder decoder) = decoder
 
 fail :: forall a o. Text -> Decoder o a
 fail msg = coerce (Arrow.arr (\() -> msg) Arrow.>>> Arrow.fail @a)
+
+debug :: forall o. (Show o) => Decoder o ()
+debug = coerce (Arrow.debug @o @())
 
 {----- DocumentDecoder -----}
 

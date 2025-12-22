@@ -28,6 +28,7 @@ module Data.KDL.Decoder.Arrow (
   module Data.KDL.Decoder.DecodeM,
   fail,
   withDecoder,
+  debug,
 
   -- * Document
   DocumentDecoder (..),
@@ -142,6 +143,7 @@ import Data.Scientific qualified as Scientific
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Typeable (TypeRep, Typeable, typeRep)
+import Debug.Trace (traceM)
 import Prelude hiding (any, fail, null)
 import Prelude qualified
 
@@ -217,6 +219,12 @@ withDecoder decoder f = decoder >>> liftDecodeM f
 
 fail :: forall b o. Decoder o Text b
 fail = liftDecodeM failM
+
+debug :: forall o a. (Show o) => Decoder o a ()
+debug =
+  Decoder (SchemaAnd []) $ \(o, _) -> do
+    traceM $ "[kdl-hs] DEBUG: " ++ show o
+    pure (o, ())
 
 {----- DocumentDecoder -----}
 

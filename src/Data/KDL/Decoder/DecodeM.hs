@@ -82,4 +82,4 @@ runDecodeM :: DecodeM a -> Either DecodeError a
 runDecodeM (DecodeM f) = f (\ctx msg -> Left $ DecodeError (reverse ctx) msg) Right
 
 renderDecodeError :: DecodeError -> Text
-renderDecodeError (DecodeError ctx e) = "At: " <> (Text.pack . show) ctx <> "\n" <> (Text.pack . show) e -- TODO: render pretty
+renderDecodeError (DecodeError ctx e) = "At: " <> (Text.pack . show) ctx <> "\n" <> (Text.pack . show) e -- FIXME: render pretty
