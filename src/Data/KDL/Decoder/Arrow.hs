@@ -1,3 +1,4 @@
+{-# LANGUAGE Arrows #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedRecordDot #-}
@@ -98,7 +99,7 @@ import Control.Applicative (
   Alternative (..),
   optional,
  )
-import Control.Arrow (Arrow (..), ArrowChoice (..), (>>>))
+import Control.Arrow (Arrow (..), ArrowChoice (..), returnA, (>>>))
 import Control.Category (Category)
 import Control.Category qualified
 import Control.Monad (forM, unless, (>=>))
@@ -298,14 +299,23 @@ nodeAt name = nodeAtWith name node
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob", "Charlie", "Danielle"]
 -- @
 nodeAtWith :: Text -> NodeDecoder a b -> NodeListDecoder a b
+nodeAtWith name decoder = proc a -> do
+  mb <- nodeAtWithMaybe name decoder -< a
+  case mb of
+    Just b -> returnA -< b
+    Nothing -> liftDecodeM (\_ -> decodeThrow $ DecodeError_ExpectedNode name) -< ()
+
+-- | Same as 'nodeAtWith', except returns Nothing if a node with the given name
+-- can't be found, instead of erroring.
+nodeAtWithMaybe :: Text -> NodeDecoder a b -> NodeListDecoder a (Maybe b)
 -- TODO: Detect duplicate `node` calls with the same name and fail to build a decoder
-nodeAtWith name decoder =
+nodeAtWithMaybe name decoder =
   Decoder (SchemaOne $ NodeNamed name decoder.schema) $ \(nodeList, a) -> do
-    (node_, nodes) <-
-      maybe (decodeThrow $ DecodeError_ExpectedNode name) pure $
-        extractFirst ((== name) . (.obj.name.value)) nodeList.nodes
-    (_, b) <- decoder.run (node_, a)
-    pure (nodeList{nodes = nodes}, b)
+    case extractFirst ((== name) . (.obj.name.value)) nodeList.nodes of
+      Nothing -> pure (nodeList, Nothing)
+      Just (node_, nodes) -> do
+        (_, b) <- decoder.run (node_, a)
+        pure (nodeList{nodes = nodes}, Just b)
 
 -- | Decode all remaining nodes with the given decoder.
 --
@@ -391,7 +401,7 @@ argAt name = nodeAtWith name $ nodeWith [] arg
 -- KDL.decodeWith decoder config == Right ["a@example.com", "b@example.com"]
 -- @
 argsAt :: (DecodeBaseValue a) => Text -> NodeListDecoder () [a]
-argsAt name = nodeAtWith name $ nodeWith [] $ many arg
+argsAt name = fmap (fromMaybe []) $ nodeAtWithMaybe name $ nodeWith [] $ many arg
 
 -- | A helper for decoding child values in a list following the KDL convention of being named "-".
 --
@@ -477,7 +487,7 @@ dashNodesAt name = dashNodesAtWith name node
 -- @
 dashNodesAtWith :: forall a b. (Typeable b) => Text -> NodeDecoder a b -> NodeListDecoder a [b]
 dashNodesAtWith name decoder =
-  option [] . nodeAtWith name . nodeWith [] $
+  fmap (fromMaybe []) . nodeAtWithMaybe name . nodeWith [] $
     children $
       many (nodeAtWith "-" decoder)
 
