@@ -37,7 +37,7 @@ module Data.KDL.Decoder.Monad (
 
   -- * NodeList
   NodeListDecoder,
-  nodeAt,
+  node,
   remainingNodes,
   argAt,
   argsAt,
@@ -45,7 +45,7 @@ module Data.KDL.Decoder.Monad (
   dashNodesAt,
 
   -- ** Explicitly specify NodeDecoder
-  nodeAtWith,
+  nodeWith,
   remainingNodesWith,
   dashChildrenAtWith,
   dashNodesAtWith,
@@ -175,13 +175,13 @@ type NodeListDecoder = Decoder NodeList
 --     (Dog)person "Fido"
 --     """
 --   decoder = KDL.document $ do
---     many $ KDL.nodeAt "person"
+--     many $ KDL.node "person"
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob", "Charlie", "Danielle"]
 -- @
-nodeAt :: forall a. (Arrow.DecodeBaseNode a) => Text -> NodeListDecoder a
-nodeAt = coerce (Arrow.nodeAt @a)
+node :: forall a. (Arrow.DecodeBaseNode a) => Text -> NodeListDecoder a
+node = coerce (Arrow.node @a)
 
--- | Same as 'nodeAt', except explicitly specify the 'NodeDecoder' instead of using 'DecodeBaseNode'.
+-- | Same as 'node', except explicitly specify the 'NodeDecoder' instead of using 'DecodeBaseNode'.
 --
 -- == __Example__
 --
@@ -196,11 +196,11 @@ nodeAt = coerce (Arrow.nodeAt @a)
 --     (Dog)person "Fido"
 --     """
 --   decoder = KDL.document $ do
---     many . KDL.nodeAtWith "person" . KDL.nodeWith ["Person"] $ KDL.arg
+--     many . KDL.nodeWith "person" . KDL.nodeWith ["Person"] $ KDL.arg
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob", "Charlie", "Danielle"]
 -- @
-nodeAtWith :: forall a. (Typeable a) => Text -> [Text] -> BaseNodeDecoder a -> NodeListDecoder a
-nodeAtWith = coerce (Arrow.nodeAtWith @() @a)
+nodeWith :: forall a. (Typeable a) => Text -> [Text] -> BaseNodeDecoder a -> NodeListDecoder a
+nodeWith = coerce (Arrow.nodeWith @() @a)
 
 -- | Decode all remaining nodes with the given decoder.
 --

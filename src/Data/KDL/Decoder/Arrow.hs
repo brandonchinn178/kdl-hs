@@ -38,7 +38,7 @@ module Data.KDL.Decoder.Arrow (
 
   -- * NodeList
   NodeListDecoder,
-  nodeAt,
+  node,
   remainingNodes,
   argAt,
   argsAt,
@@ -46,7 +46,7 @@ module Data.KDL.Decoder.Arrow (
   dashNodesAt,
 
   -- ** Explicitly specify NodeDecoder
-  nodeAtWith,
+  nodeWith,
   remainingNodesWith,
   dashChildrenAtWith,
   dashNodesAtWith,
@@ -260,13 +260,13 @@ validateNodeList nodeList = do
 --     (Dog)person "Fido"
 --     """
 --   decoder = KDL.document $ proc () -> do
---     many $ KDL.nodeAt "person" -< ()
+--     many $ KDL.node "person" -< ()
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob", "Charlie", "Danielle"]
 -- @
-nodeAt :: (DecodeBaseNode a) => Text -> NodeListDecoder () a
-nodeAt name = withDecodeBaseNode $ nodeAtWith name
+node :: (DecodeBaseNode a) => Text -> NodeListDecoder () a
+node name = withDecodeBaseNode $ nodeWith name
 
--- | Same as 'nodeAt', except explicitly specify the 'NodeDecoder' instead of using 'DecodeBaseNode'.
+-- | Same as 'node', except explicitly specify the 'NodeDecoder' instead of using 'DecodeBaseNode'.
 --
 -- == __Example__
 --
@@ -281,21 +281,21 @@ nodeAt name = withDecodeBaseNode $ nodeAtWith name
 --     (Dog)person "Fido"
 --     """
 --   decoder = KDL.document $ proc () -> do
---     many . KDL.nodeAtWith "person" . KDL.nodeWith ["Person"] $ KDL.arg -< ()
+--     many . KDL.nodeWith "person" . KDL.nodeWith ["Person"] $ KDL.arg -< ()
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob", "Charlie", "Danielle"]
 -- @
-nodeAtWith :: forall a b. (Typeable b) => Text -> [Text] -> BaseNodeDecoder a b -> NodeListDecoder a b
-nodeAtWith name typeAnns decoder = proc a -> do
-  mb <- nodeAtWithMaybe name typeAnns decoder -< a
+nodeWith :: forall a b. (Typeable b) => Text -> [Text] -> BaseNodeDecoder a b -> NodeListDecoder a b
+nodeWith name typeAnns decoder = proc a -> do
+  mb <- nodeWithMaybe name typeAnns decoder -< a
   case mb of
     Just b -> returnA -< b
     Nothing -> liftDecodeM (\_ -> decodeThrow $ DecodeError_ExpectedNode name) -< ()
 
--- | Same as 'nodeAtWith', except returns Nothing if a node with the given name
+-- | Same as 'nodeWith', except returns Nothing if a node with the given name
 -- can't be found, instead of erroring.
-nodeAtWithMaybe :: forall a b. (Typeable b) => Text -> [Text] -> BaseNodeDecoder a b -> NodeListDecoder a (Maybe b)
+nodeWithMaybe :: forall a b. (Typeable b) => Text -> [Text] -> BaseNodeDecoder a b -> NodeListDecoder a (Maybe b)
 -- TODO: Detect duplicate `node` calls with the same name and fail to build a decoder
-nodeAtWithMaybe name =
+nodeWithMaybe name =
   withNodeDecoder $ \decoder ->
     Decoder (SchemaOne $ NodeNamed name decoder.schema) $ \(nodeList, a) -> do
       case extractFirst ((== name) . (.obj.name.value)) nodeList.nodes of
@@ -371,7 +371,7 @@ remainingNodesWith =
 -- KDL.decodeWith decoder config == Right True
 -- @
 argAt :: (DecodeBaseValue a) => Text -> NodeListDecoder () a
-argAt name = nodeAtWith name [] arg
+argAt name = nodeWith name [] arg
 
 -- | A helper to decode all the arguments of the first node with the given name.
 -- A utility for nodes that are acting like a key-value store with a list of values.
@@ -392,7 +392,7 @@ argAt name = nodeAtWith name [] arg
 -- KDL.decodeWith decoder config == Right ["a@example.com", "b@example.com"]
 -- @
 argsAt :: (DecodeBaseValue a) => Text -> NodeListDecoder () [a]
-argsAt name = fmap (fromMaybe []) $ nodeAtWithMaybe name [] $ many arg
+argsAt name = fmap (fromMaybe []) $ nodeWithMaybe name [] $ many arg
 
 -- | A helper for decoding child values in a list following the KDL convention of being named "-".
 --
@@ -478,9 +478,9 @@ dashNodesAt name = withDecodeBaseNode $ dashNodesAtWith name
 -- @
 dashNodesAtWith :: forall a b. (Typeable b) => Text -> [Text] -> BaseNodeDecoder a b -> NodeListDecoder a [b]
 dashNodesAtWith name typeAnns decoder =
-  fmap (fromMaybe []) . nodeAtWithMaybe name [] $
+  fmap (fromMaybe []) . nodeWithMaybe name [] $
     children $
-      many (nodeAtWith "-" typeAnns decoder)
+      many (nodeWith "-" typeAnns decoder)
 
 {----- AnnDecoder -----}
 
