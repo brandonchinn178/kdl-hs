@@ -27,6 +27,7 @@ module Data.KDL.Decoder.Arrow (
   Decoder (..),
   DecodeError (..),
   module Data.KDL.Decoder.DecodeM,
+  runDecoder,
   fail,
   withDecoder,
   debug,
@@ -143,7 +144,7 @@ decodeFileWith decoder = fmap (decodeFromParseResult decoder) . parseFile
 decodeFromParseResult :: DocumentDecoder a -> Either Text Document -> Either DecodeError a
 decodeFromParseResult (UnsafeDocumentDecoder decoder) = \case
   Left e -> Left . DecodeError [] $ DecodeError_ParseError e
-  Right doc -> runDecodeM $ snd <$> decoder.run (doc, ())
+  Right doc -> runDecoder decoder doc
 
 {----- Decoder -----}
 
@@ -203,6 +204,9 @@ liftDecodeM f = Decoder (SchemaAnd []) (traverse f)
 
 withDecoder :: Decoder o a b -> (b -> DecodeM c) -> Decoder o a c
 withDecoder decoder f = decoder >>> liftDecodeM f
+
+runDecoder :: Decoder o () b -> o -> Either DecodeError b
+runDecoder decoder o = runDecodeM $ snd <$> decoder.run (o, ())
 
 fail :: forall b o. Decoder o Text b
 fail = liftDecodeM failM
@@ -547,6 +551,19 @@ class (Typeable a) => DecodeBaseNode a where
   baseNodeTypeAnns :: Proxy a -> [Text]
   baseNodeTypeAnns _ = []
   baseNodeDecoder :: BaseNodeDecoder () a
+
+instance DecodeBaseNode BaseNode where
+  baseNodeDecoder =
+    Decoder SchemaUnknown $ \(baseNode, ()) ->
+      pure (emptyBaseNode baseNode.name, baseNode)
+   where
+    emptyBaseNode name =
+      BaseNode
+        { name = name
+        , entries = []
+        , children = Nothing
+        , format = Nothing
+        }
 
 -- FIXME: document
 arg :: (DecodeBaseValue a) => BaseNodeDecoder () a

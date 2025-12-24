@@ -22,6 +22,7 @@ module Data.KDL.Decoder.Monad (
   Decoder,
   DecodeError (..),
   module Data.KDL.Decoder.DecodeM,
+  runDecoder,
   fail,
   debug,
 
@@ -136,6 +137,9 @@ withoutSchema (Decoder decoder) = decoder
 
 fail :: forall a o. Text -> Decoder o a
 fail msg = coerce (Arrow.arr (\() -> msg) Arrow.>>> Arrow.fail @a)
+
+runDecoder :: forall o a. Decoder o a -> o -> Either DecodeError a
+runDecoder = coerce (Arrow.runDecoder @o @a)
 
 debug :: forall o. (Show o) => Decoder o ()
 debug = coerce (Arrow.debug @o @())
