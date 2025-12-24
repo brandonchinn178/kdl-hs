@@ -51,13 +51,6 @@ module Data.KDL.Decoder.Arrow (
   dashChildrenAtWith,
   dashNodesAtWith,
 
-  -- * Node
-  NodeDecoder,
-  node,
-
-  -- ** Explicitly specify BaseNodeDecoder
-  nodeWith,
-
   -- * BaseNode
   BaseNodeDecoder,
   DecodeBaseNode (..),
@@ -70,13 +63,6 @@ module Data.KDL.Decoder.Arrow (
   argWith,
   propWith,
   remainingPropsWith,
-
-  -- * Value
-  ValueDecoder,
-  value,
-
-  -- ** Explicitly specify BaseValueDecoder
-  valueWith,
 
   -- * BaseValue
   BaseValueDecoder,
@@ -278,7 +264,7 @@ validateNodeList nodeList = do
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob", "Charlie", "Danielle"]
 -- @
 nodeAt :: (DecodeBaseNode a) => Text -> NodeListDecoder () a
-nodeAt name = nodeAtWith name node
+nodeAt name = withDecodeBaseNode $ nodeAtWith name
 
 -- | Same as 'nodeAt', except explicitly specify the 'NodeDecoder' instead of using 'DecodeBaseNode'.
 --
@@ -298,24 +284,25 @@ nodeAt name = nodeAtWith name node
 --     many . KDL.nodeAtWith "person" . KDL.nodeWith ["Person"] $ KDL.arg -< ()
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob", "Charlie", "Danielle"]
 -- @
-nodeAtWith :: Text -> NodeDecoder a b -> NodeListDecoder a b
-nodeAtWith name decoder = proc a -> do
-  mb <- nodeAtWithMaybe name decoder -< a
+nodeAtWith :: forall a b. (Typeable b) => Text -> [Text] -> BaseNodeDecoder a b -> NodeListDecoder a b
+nodeAtWith name typeAnns decoder = proc a -> do
+  mb <- nodeAtWithMaybe name typeAnns decoder -< a
   case mb of
     Just b -> returnA -< b
     Nothing -> liftDecodeM (\_ -> decodeThrow $ DecodeError_ExpectedNode name) -< ()
 
 -- | Same as 'nodeAtWith', except returns Nothing if a node with the given name
 -- can't be found, instead of erroring.
-nodeAtWithMaybe :: Text -> NodeDecoder a b -> NodeListDecoder a (Maybe b)
+nodeAtWithMaybe :: forall a b. (Typeable b) => Text -> [Text] -> BaseNodeDecoder a b -> NodeListDecoder a (Maybe b)
 -- TODO: Detect duplicate `node` calls with the same name and fail to build a decoder
-nodeAtWithMaybe name decoder =
-  Decoder (SchemaOne $ NodeNamed name decoder.schema) $ \(nodeList, a) -> do
-    case extractFirst ((== name) . (.obj.name.value)) nodeList.nodes of
-      Nothing -> pure (nodeList, Nothing)
-      Just (node_, nodes) -> do
-        (_, b) <- decoder.run (node_, a)
-        pure (nodeList{nodes = nodes}, Just b)
+nodeAtWithMaybe name =
+  withNodeDecoder $ \decoder ->
+    Decoder (SchemaOne $ NodeNamed name decoder.schema) $ \(nodeList, a) -> do
+      case extractFirst ((== name) . (.obj.name.value)) nodeList.nodes of
+        Nothing -> pure (nodeList, Nothing)
+        Just (node_, nodes) -> do
+          (_, b) <- decoder.run (node_, a)
+          pure (nodeList{nodes = nodes}, Just b)
 
 -- | Decode all remaining nodes with the given decoder.
 --
@@ -339,7 +326,7 @@ nodeAtWithMaybe name decoder =
 -- KDL.decodeWith decoder config == Right (Map.fromList [("build", [MyArg "pkg1", MyArg "pkg2"]), ("lint", [MyArg "pkg1"])])
 -- @
 remainingNodes :: (DecodeBaseNode a) => NodeListDecoder () (Map Text [a])
-remainingNodes = remainingNodesWith node
+remainingNodes = withDecodeBaseNode remainingNodesWith
 
 -- | Same as 'remainingNodes', except explicitly specify the 'NodeDecoder' instead of using 'DecodeBaseNode'
 --
@@ -357,15 +344,16 @@ remainingNodes = remainingNodesWith node
 --     KDL.remainingNodes . KDL.nodeWith [] $ KDL.arg -< ()
 -- KDL.decodeWith decoder config == Right (Map.fromList [("build", ["pkg1", "pkg2"]), ("lint", ["pkg1"])])
 -- @
-remainingNodesWith :: NodeDecoder a b -> NodeListDecoder a (Map Text [b])
+remainingNodesWith :: forall a b. (Typeable b) => [Text] -> BaseNodeDecoder a b -> NodeListDecoder a (Map Text [b])
 -- TODO: Detect duplicate `remainingNodes` calls and fail to build a decoder
-remainingNodesWith decoder =
-  Decoder (SchemaOne $ RemainingNodes decoder.schema) $ \(nodeList, a) -> do
-    nodeMap <-
-      fmap (Map.fromListWith (<>)) . forM nodeList.nodes $ \node_ -> do
-        (_, b) <- decoder.run (node_, a)
-        pure (node_.obj.name.value, [b])
-    pure (nodeList{nodes = []}, nodeMap)
+remainingNodesWith =
+  withNodeDecoder $ \decoder ->
+    Decoder (SchemaOne $ RemainingNodes decoder.schema) $ \(nodeList, a) -> do
+      nodeMap <-
+        fmap (Map.fromListWith (<>)) . forM nodeList.nodes $ \node_ -> do
+          (_, b) <- decoder.run (node_, a)
+          pure (node_.obj.name.value, [b])
+      pure (nodeList{nodes = []}, nodeMap)
 
 -- | A helper to decode the first argument of the first node with the given name.
 -- A utility for nodes that are acting like a key-value store.
@@ -383,10 +371,13 @@ remainingNodesWith decoder =
 -- KDL.decodeWith decoder config == Right True
 -- @
 argAt :: (DecodeBaseValue a) => Text -> NodeListDecoder () a
-argAt name = nodeAtWith name $ nodeWith [] arg
+argAt name = nodeAtWith name [] arg
 
 -- | A helper to decode all the arguments of the first node with the given name.
 -- A utility for nodes that are acting like a key-value store with a list of values.
+--
+-- This is different from 'many (argAt "foo")', as that would find multiple nodes
+-- named "foo" and get the first arg from each.
 --
 -- == __Example__
 --
@@ -401,7 +392,7 @@ argAt name = nodeAtWith name $ nodeWith [] arg
 -- KDL.decodeWith decoder config == Right ["a@example.com", "b@example.com"]
 -- @
 argsAt :: (DecodeBaseValue a) => Text -> NodeListDecoder () [a]
-argsAt name = fmap (fromMaybe []) $ nodeAtWithMaybe name $ nodeWith [] $ many arg
+argsAt name = fmap (fromMaybe []) $ nodeAtWithMaybe name [] $ many arg
 
 -- | A helper for decoding child values in a list following the KDL convention of being named "-".
 --
@@ -421,7 +412,7 @@ argsAt name = fmap (fromMaybe []) $ nodeAtWithMaybe name $ nodeWith [] $ many ar
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob"]
 -- @
 dashChildrenAt :: (DecodeBaseValue a) => Text -> NodeListDecoder () [a]
-dashChildrenAt name = dashChildrenAtWith name value
+dashChildrenAt name = withDecodeBaseValue $ dashChildrenAtWith name
 
 -- | Same as 'dashChildrenAt', except explicitly specify the 'ValueDecoder' instead of using 'DecodeBaseValue'
 --
@@ -440,8 +431,8 @@ dashChildrenAt name = dashChildrenAtWith name value
 --     KDL.dashChildrenAtWith "attendees" $ KDL.valueWith [] KDL.text -< ()
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob"]
 -- @
-dashChildrenAtWith :: forall a b. (Typeable b) => Text -> ValueDecoder a b -> NodeListDecoder a [b]
-dashChildrenAtWith name decoder = dashNodesAtWith name $ nodeWith [] $ argWith decoder
+dashChildrenAtWith :: forall a b. (Typeable b) => Text -> [Text] -> BaseValueDecoder a b -> NodeListDecoder a [b]
+dashChildrenAtWith name typeAnns decoder = dashNodesAtWith name [] $ argWith typeAnns decoder
 
 -- | A helper for decoding child values in a list following the KDL convention of being named "-".
 --
@@ -466,7 +457,7 @@ dashChildrenAtWith name decoder = dashNodesAtWith name $ nodeWith [] $ argWith d
 -- KDL.decodeWith decoder config == Right [Attendee "Alice", Attendee "Bob"]
 -- @
 dashNodesAt :: (DecodeBaseNode a) => Text -> NodeListDecoder () [a]
-dashNodesAt name = dashNodesAtWith name node
+dashNodesAt name = withDecodeBaseNode $ dashNodesAtWith name
 
 -- | Same as 'dashChildrenAt', except explicitly specify the 'NodeDecoder' instead of using 'DecodeBaseNode'
 --
@@ -485,24 +476,25 @@ dashNodesAt name = dashNodesAtWith name node
 --     KDL.dashNodesAtWith "attendees" $ KDL.nodeWith [] KDL.arg -< ()
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob"]
 -- @
-dashNodesAtWith :: forall a b. (Typeable b) => Text -> NodeDecoder a b -> NodeListDecoder a [b]
-dashNodesAtWith name decoder =
-  fmap (fromMaybe []) . nodeAtWithMaybe name . nodeWith [] $
+dashNodesAtWith :: forall a b. (Typeable b) => Text -> [Text] -> BaseNodeDecoder a b -> NodeListDecoder a [b]
+dashNodesAtWith name typeAnns decoder =
+  fmap (fromMaybe []) . nodeAtWithMaybe name [] $
     children $
-      many (nodeAtWith "-" decoder)
+      many (nodeAtWith "-" typeAnns decoder)
 
 {----- AnnDecoder -----}
 
 annDecoder ::
-  forall a b o.
+  forall a b o r.
   (Typeable b) =>
   (TypeRep -> [Text] -> SchemaOf o -> SchemaItem (Ann o)) ->
   (TypeRep -> Ann o -> BaseDecodeError) ->
+  (Decoder (Ann o) a b -> r) ->
   [Text] ->
   Decoder o a b ->
-  Decoder (Ann o) a b
-annDecoder mkSchema mkError typeAnns decoder =
-  Decoder (SchemaOne schema) $ \(x, a) -> do
+  r
+annDecoder mkSchema mkError k typeAnns decoder =
+  k . Decoder (SchemaOne schema) $ \(x, a) -> do
     case x.ann of
       Just givenAnn -> do
         let isValidAnn = Prelude.null typeAnns || givenAnn.value `elem` typeAnns
@@ -525,12 +517,12 @@ annDecoder mkSchema mkError typeAnns decoder =
 type NodeDecoder = Decoder Node
 
 -- | FIXME: document
-node :: forall a. (DecodeBaseNode a) => NodeDecoder () a
-node = nodeWith (baseNodeTypeAnns (Proxy @a)) baseNodeDecoder
+withDecodeBaseNode :: forall a r. (DecodeBaseNode a) => ([Text] -> BaseNodeDecoder () a -> r) -> r
+withDecodeBaseNode k = k (baseNodeTypeAnns (Proxy @a)) baseNodeDecoder
 
 -- | FIXME: document
-nodeWith :: forall a b. (Typeable b) => [Text] -> BaseNodeDecoder a b -> NodeDecoder a b
-nodeWith typeAnns = annDecoder NodeSchema DecodeError_NodeDecodeFail typeAnns . validate
+withNodeDecoder :: forall a b r. (Typeable b) => (NodeDecoder a b -> r) -> [Text] -> BaseNodeDecoder a b -> r
+withNodeDecoder k typeAnns = annDecoder NodeSchema DecodeError_NodeDecodeFail k typeAnns . validate
  where
   validate decoder =
     decoder
@@ -558,51 +550,54 @@ class (Typeable a) => DecodeBaseNode a where
 
 -- FIXME: document
 arg :: (DecodeBaseValue a) => BaseNodeDecoder () a
-arg = argWith value
+arg = withDecodeBaseValue argWith
 
 -- FIXME: document
-argWith :: forall a b. ValueDecoder a b -> BaseNodeDecoder a b
-argWith decoder =
-  Decoder (SchemaOne $ NodeArg decoder.schema) $ \(baseNode, a) -> do
-    (entry, entries) <-
-      maybe (decodeThrow missingError) pure $
-        extractFirst (isNothing . (.name)) baseNode.entries
-    (_, b) <- decoder.run (entry.value, a)
-    pure (baseNode{entries = entries}, b)
+argWith :: forall a b. (Typeable b) => [Text] -> BaseValueDecoder a b -> BaseNodeDecoder a b
+argWith =
+  withValueDecoder $ \decoder ->
+    Decoder (SchemaOne $ NodeArg decoder.schema) $ \(baseNode, a) -> do
+      (entry, entries) <-
+        maybe (decodeThrow missingError) pure $
+          extractFirst (isNothing . (.name)) baseNode.entries
+      (_, b) <- decoder.run (entry.value, a)
+      pure (baseNode{entries = entries}, b)
  where
   missingError = DecodeError_ExpectedArg -- tODO: add arg index information
 
 -- | FIXME: document
 prop :: (DecodeBaseValue a) => Text -> BaseNodeDecoder () a
-prop name = propWith name value
+prop name = withDecodeBaseValue $ propWith name
 
 -- | FIXME: document
-propWith :: forall a b. Text -> ValueDecoder a b -> BaseNodeDecoder a b
-propWith name decoder =
-  Decoder (SchemaOne $ NodeProp name decoder.schema) $ \(baseNode, a) -> do
-    let (props, entries) = partition (\entry -> ((.value) <$> entry.name) == Just name) baseNode.entries
-    case NonEmpty.nonEmpty props of
-      Nothing -> do
-        decodeThrow $ DecodeError_ExpectedProp name
-      Just propsNE -> do
-        let prop_ = NonEmpty.last propsNE
-        (_, b) <- decoder.run (prop_.value, a)
-        pure (baseNode{entries = entries}, b)
+propWith :: forall a b. (Typeable b) => Text -> [Text] -> BaseValueDecoder a b -> BaseNodeDecoder a b
+propWith name =
+  withValueDecoder $ \decoder ->
+    Decoder (SchemaOne $ NodeProp name decoder.schema) $ \(baseNode, a) -> do
+      let (props, entries) = partition (\entry -> ((.value) <$> entry.name) == Just name) baseNode.entries
+      case NonEmpty.nonEmpty props of
+        Nothing -> do
+          decodeThrow $ DecodeError_ExpectedProp name
+        Just propsNE -> do
+          let prop_ = NonEmpty.last propsNE
+          (_, b) <- decoder.run (prop_.value, a)
+          pure (baseNode{entries = entries}, b)
 
 -- | FIXME: document
 remainingProps :: (DecodeBaseValue a) => BaseNodeDecoder () (Map Text a)
-remainingProps = remainingPropsWith value
+remainingProps = withDecodeBaseValue remainingPropsWith
 
 -- | FIXME: document
-remainingPropsWith :: ValueDecoder a b -> BaseNodeDecoder a (Map Text b)
-remainingPropsWith decoder =
-  Decoder (SchemaOne $ NodeRemainingProps decoder.schema) $ \(baseNode, a) -> do
-    let (props, entries) = partitionEithers $ map getProp baseNode.entries
-    result <-
-      fmap Map.fromList . forM props $ \(name, prop_) -> do
-        (_, b) <- decoder.run (prop_, a)
-        pure (name, b)
-    pure (baseNode{entries = entries}, result)
+remainingPropsWith :: forall a b. (Typeable b) => [Text] -> BaseValueDecoder a b -> BaseNodeDecoder a (Map Text b)
+remainingPropsWith =
+  withValueDecoder $ \decoder ->
+    Decoder (SchemaOne $ NodeRemainingProps decoder.schema) $ \(baseNode, a) -> do
+      let (props, entries) = partitionEithers $ map getProp baseNode.entries
+      result <-
+        fmap Map.fromList . forM props $ \(name, prop_) -> do
+          (_, b) <- decoder.run (prop_, a)
+          pure (name, b)
+      pure (baseNode{entries = entries}, result)
  where
   getProp entry =
     case entry.name of
@@ -622,13 +617,11 @@ children decoder =
 
 type ValueDecoder = Decoder Value
 
--- | FIXME: document
-value :: forall a. (DecodeBaseValue a) => ValueDecoder () a
-value = valueWith (baseValueTypeAnns (Proxy @a)) baseValueDecoder
+withDecodeBaseValue :: forall a r. (DecodeBaseValue a) => ([Text] -> BaseValueDecoder () a -> r) -> r
+withDecodeBaseValue k = k (baseValueTypeAnns (Proxy @a)) baseValueDecoder
 
--- | FIXME: document
-valueWith :: forall a b. (Typeable b) => [Text] -> BaseValueDecoder a b -> ValueDecoder a b
-valueWith = annDecoder ValueSchema DecodeError_ValueDecodeFail
+withValueDecoder :: (Typeable b) => (ValueDecoder a b -> r) -> [Text] -> BaseValueDecoder a b -> r
+withValueDecoder = annDecoder ValueSchema DecodeError_ValueDecodeFail
 
 {----- BaseValueDecoder -----}
 
