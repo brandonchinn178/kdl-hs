@@ -83,9 +83,7 @@ import Control.Applicative (Alternative)
 import Control.Arrow qualified as Arrow
 import Data.Coerce (coerce)
 import Data.KDL.Decoder.Arrow qualified as Arrow
-import Data.KDL.Decoder.DecodeM (
-  DecodeError (..),
- )
+import Data.KDL.Decoder.DecodeM
 import Data.KDL.Decoder.Schema (
   Schema (..),
   SchemaOf,

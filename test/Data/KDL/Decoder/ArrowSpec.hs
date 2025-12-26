@@ -15,8 +15,15 @@ import Data.KDL.Types (
   NodeList (..),
  )
 import Data.Map qualified as Map
+import Data.Text (Text)
 import Data.Text qualified as Text
 import Skeletest
+import Skeletest.Predicate qualified as P
+
+shouldBeDecodeError :: Either KDL.DecodeError a -> [Text] -> IO ()
+shouldBeDecodeError result msgs = result `shouldSatisfy` P.left (KDL.renderDecodeError P.>>> P.eq msg)
+  where
+    msg = Text.intercalate "\n" msgs
 
 spec :: Spec
 spec = do
@@ -77,7 +84,10 @@ spec = do
               foo1 <- KDL.node @BaseNode "foo" -< ()
               foo2 <- KDL.node @BaseNode "foo" -< ()
               returnA -< (foo1, foo2)
-        KDL.decodeWith decoder config `shouldBe` Left (KDL.DecodeError [] $ KDL.DecodeError_ExpectedNode "foo")
+        KDL.decodeWith decoder config
+          `shouldBeDecodeError` [ "At: <root>"
+                                , "  Expected node: foo"
+                                ]
 
     describe "remainingNodes" $ do
       it "returns all remaining nodes" $ do

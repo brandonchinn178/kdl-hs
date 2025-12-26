@@ -93,14 +93,7 @@ import Control.Monad (forM, unless, (>=>))
 import Data.Either (partitionEithers)
 import Data.Foldable (traverse_)
 import Data.Int (Int64)
-import Data.KDL.Decoder.DecodeM (
-  BaseDecodeError (..),
-  DecodeError (..),
-  DecodeM,
-  decodeThrow,
-  failM,
-  runDecodeM,
- )
+import Data.KDL.Decoder.DecodeM
 import Data.KDL.Decoder.Schema (
   Schema (..),
   SchemaItem (..),
@@ -119,6 +112,7 @@ import Data.KDL.Types (
   Node,
   NodeList (..),
   Value,
+  toIdentifier,
  )
 import Data.List (partition)
 import Data.List.NonEmpty qualified as NonEmpty
@@ -143,7 +137,7 @@ decodeFileWith decoder = fmap (decodeFromParseResult decoder) . parseFile
 
 decodeFromParseResult :: DocumentDecoder a -> Either Text Document -> Either DecodeError a
 decodeFromParseResult (UnsafeDocumentDecoder decoder) = \case
-  Left e -> Left . DecodeError [] $ DecodeError_ParseError e
+  Left e -> runDecodeM $ decodeThrow $ DecodeError_ParseError e
   Right doc -> runDecoder decoder doc
 
 {----- Decoder -----}
@@ -293,7 +287,8 @@ nodeWith name typeAnns decoder = proc a -> do
   mb <- nodeWithMaybe name typeAnns decoder -< a
   case mb of
     Just b -> returnA -< b
-    Nothing -> liftDecodeM (\_ -> decodeThrow $ DecodeError_ExpectedNode name) -< ()
+    -- FIXME: fix index
+    Nothing -> liftDecodeM (\_ -> decodeThrow DecodeError_ExpectedNode{name = name, index = 0}) -< ()
 
 -- | Same as 'nodeWith', except returns Nothing if a node with the given name
 -- can't be found, instead of erroring.
@@ -305,7 +300,8 @@ nodeWithMaybe name =
       case extractFirst ((== name) . (.obj.name.value)) nodeList.nodes of
         Nothing -> pure (nodeList, Nothing)
         Just (node_, nodes) -> do
-          (_, b) <- decoder.run (node_, a)
+          -- FIXME: fix index
+          (_, b) <- addContext ContextNode{name = toIdentifier name, index = 0} $ decoder.run (node_, a)
           pure (nodeList{nodes = nodes}, Just b)
 
 -- | Decode all remaining nodes with the given decoder.
@@ -355,8 +351,10 @@ remainingNodesWith =
     Decoder (SchemaOne $ RemainingNodes decoder.schema) $ \(nodeList, a) -> do
       nodeMap <-
         fmap (Map.fromListWith (<>)) . forM nodeList.nodes $ \node_ -> do
-          (_, b) <- decoder.run (node_, a)
-          pure (node_.obj.name.value, [b])
+          let name = node_.obj.name
+          -- FIXME: fix index
+          (_, b) <- addContext ContextNode{name = name, index = 0} $ decoder.run (node_, a)
+          pure (name.value, [b])
       pure (nodeList{nodes = []}, nodeMap)
 
 -- | A helper to decode the first argument of the first node with the given name.
@@ -492,25 +490,20 @@ annDecoder ::
   forall a b o r.
   (Typeable b) =>
   (TypeRep -> [Text] -> SchemaOf o -> SchemaItem (Ann o)) ->
-  (TypeRep -> Ann o -> BaseDecodeError) ->
   (Decoder (Ann o) a b -> r) ->
   [Text] ->
   Decoder o a b ->
   r
-annDecoder mkSchema mkError k typeAnns decoder =
+annDecoder mkSchema k typeAnns decoder =
   k . Decoder (SchemaOne schema) $ \(x, a) -> do
     case x.ann of
       Just givenAnn -> do
         let isValidAnn = Prelude.null typeAnns || givenAnn.value `elem` typeAnns
         unless isValidAnn $ do
-          decodeThrow
-            DecodeError_MismatchedAnn
-              { givenAnn = givenAnn.value
-              , validAnns = typeAnns
-              }
+          decodeThrow DecodeError_MismatchedAnn{givenAnn = givenAnn, validAnns = typeAnns}
       _ -> pure ()
-    -- FIXME: this suppresses error messages; instead, add typeHint to Context
-    (obj, b) <- decoder.run (x.obj, a) <|> decodeThrow (mkError typeHint x)
+    -- TODO: add typeHint to Context
+    (obj, b) <- decoder.run (x.obj, a)
     pure (x{obj = obj}, b)
  where
   typeHint = typeRep (Proxy @b)
@@ -526,7 +519,7 @@ withDecodeBaseNode k = k (baseNodeTypeAnns (Proxy @a)) baseNodeDecoder
 
 -- | FIXME: document
 withNodeDecoder :: forall a b r. (Typeable b) => (NodeDecoder a b -> r) -> [Text] -> BaseNodeDecoder a b -> r
-withNodeDecoder k typeAnns = annDecoder NodeSchema DecodeError_NodeDecodeFail k typeAnns . validate
+withNodeDecoder k typeAnns = annDecoder NodeSchema k typeAnns . validate
  where
   validate decoder =
     decoder
@@ -575,12 +568,12 @@ argWith =
   withValueDecoder $ \decoder ->
     Decoder (SchemaOne $ NodeArg decoder.schema) $ \(baseNode, a) -> do
       (entry, entries) <-
-        maybe (decodeThrow missingError) pure $
+        -- FIXME: fix index
+        maybe (decodeThrow DecodeError_ExpectedArg{index = 0}) pure $
           extractFirst (isNothing . (.name)) baseNode.entries
-      (_, b) <- decoder.run (entry.value, a)
+      -- FIXME: fix index
+      (_, b) <- addContext ContextArg{index = 0} $ decoder.run (entry.value, a)
       pure (baseNode{entries = entries}, b)
- where
-  missingError = DecodeError_ExpectedArg -- tODO: add arg index information
 
 -- | FIXME: document
 prop :: (DecodeBaseValue a) => Text -> BaseNodeDecoder () a
@@ -593,11 +586,10 @@ propWith name =
     Decoder (SchemaOne $ NodeProp name decoder.schema) $ \(baseNode, a) -> do
       let (props, entries) = partition (\entry -> ((.value) <$> entry.name) == Just name) baseNode.entries
       case NonEmpty.nonEmpty props of
-        Nothing -> do
-          decodeThrow $ DecodeError_ExpectedProp name
+        Nothing -> decodeThrow DecodeError_ExpectedProp{name = name}
         Just propsNE -> do
           let prop_ = NonEmpty.last propsNE
-          (_, b) <- decoder.run (prop_.value, a)
+          (_, b) <- addContext ContextProp{name = toIdentifier name} $ decoder.run (prop_.value, a)
           pure (baseNode{entries = entries}, b)
 
 -- | FIXME: document
@@ -612,13 +604,13 @@ remainingPropsWith =
       let (props, entries) = partitionEithers $ map getProp baseNode.entries
       result <-
         fmap Map.fromList . forM props $ \(name, prop_) -> do
-          (_, b) <- decoder.run (prop_, a)
-          pure (name, b)
+          (_, b) <- addContext ContextProp{name = name} $ decoder.run (prop_, a)
+          pure (name.value, b)
       pure (baseNode{entries = entries}, result)
  where
   getProp entry =
     case entry.name of
-      Just name -> Left (name.value, entry.value)
+      Just name -> Left (name, entry.value)
       _ -> Right entry
 
 -- | FIXME: document
@@ -638,7 +630,7 @@ withDecodeBaseValue :: forall a r. (DecodeBaseValue a) => ([Text] -> BaseValueDe
 withDecodeBaseValue k = k (baseValueTypeAnns (Proxy @a)) baseValueDecoder
 
 withValueDecoder :: (Typeable b) => (ValueDecoder a b -> r) -> [Text] -> BaseValueDecoder a b -> r
-withValueDecoder = annDecoder ValueSchema DecodeError_ValueDecodeFail
+withValueDecoder = annDecoder ValueSchema
 
 {----- BaseValueDecoder -----}
 
