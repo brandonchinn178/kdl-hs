@@ -43,6 +43,7 @@ library
     , prettyprinter
     , scientific
     , text
+    , transformers
   default-language: GHC2021
   ghc-options: -Wall -Wcompat
 

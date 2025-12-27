@@ -22,12 +22,12 @@ FIXME: quickstart
 module Data.KDL.Decoder.Arrow (
   decodeWith,
   decodeFileWith,
+  decodeDocWith,
 
   -- * Decoder
   Decoder (..),
   DecodeError (..),
   module Data.KDL.Decoder.DecodeM,
-  runDecoder,
   fail,
   withDecoder,
   debug,
@@ -80,6 +80,11 @@ module Data.KDL.Decoder.Arrow (
   optional,
   option,
   some,
+
+  -- * Internal API
+  runDecoder,
+  HasDecodeHistory (..),
+  DecodeState (..),
 ) where
 
 import Control.Applicative (
@@ -89,8 +94,10 @@ import Control.Applicative (
 import Control.Arrow (Arrow (..), ArrowChoice (..), returnA, (>>>))
 import Control.Category (Category)
 import Control.Category qualified
-import Control.Monad (forM, unless, (>=>))
-import Data.Either (partitionEithers)
+import Control.Monad (unless, (>=>))
+import Control.Monad.Trans.Class qualified as Trans
+import Control.Monad.Trans.State.Strict (StateT)
+import Control.Monad.Trans.State.Strict qualified as StateT
 import Data.Foldable (traverse_)
 import Data.Int (Int64)
 import Data.KDL.Decoder.DecodeM
@@ -112,16 +119,17 @@ import Data.KDL.Types (
   Node,
   NodeList (..),
   Value,
-  toIdentifier,
  )
 import Data.List (partition)
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.Map (Map)
-import Data.Map qualified as Map
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe, isNothing)
 import Data.Proxy (Proxy (..))
 import Data.Scientific (Scientific)
 import Data.Scientific qualified as Scientific
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Typeable (TypeRep, Typeable, typeRep)
@@ -129,18 +137,38 @@ import Debug.Trace (traceM)
 import Prelude hiding (any, fail, null)
 import Prelude qualified
 
+-- | FIXME: document
 decodeWith :: DocumentDecoder a -> Text -> Either DecodeError a
 decodeWith decoder = decodeFromParseResult decoder . parse
 
+-- | FIXME: document
 decodeFileWith :: DocumentDecoder a -> FilePath -> IO (Either DecodeError a)
 decodeFileWith decoder = fmap (decodeFromParseResult decoder) . parseFile
 
+-- | FIXME: document
+decodeDocWith :: DocumentDecoder a -> Document -> Either DecodeError a
+decodeDocWith (UnsafeDocumentDecoder decoder) doc = runDecodeM $ snd <$> runDecoder decoder (doc, ())
+
 decodeFromParseResult :: DocumentDecoder a -> Either Text Document -> Either DecodeError a
-decodeFromParseResult (UnsafeDocumentDecoder decoder) = \case
-  Left e -> runDecodeM $ decodeThrow $ DecodeError_ParseError e
-  Right doc -> runDecoder decoder doc
+decodeFromParseResult decoder = \case
+  Left e -> runDecodeM . decodeThrow $ DecodeError_ParseError e
+  Right doc -> decodeDocWith decoder doc
 
 {----- Decoder -----}
+
+class HasDecodeHistory o where
+  data DecodeHistory o
+  emptyDecodeHistory :: DecodeHistory o
+
+-- | The state to track when decoding an object of type @o@.
+--
+-- At each decode step, some value within @o@ is consumed and
+-- the action is recorded in the history.
+data DecodeState o = DecodeState
+  { object :: !o
+  , history :: DecodeHistory o
+  -- ^ Not strict, since this only matters for reporting errors
+  }
 
 -- | @Decoder o a b@ represents an arrow with input @a@ and output @b@, within
 -- the context of decoding a KDL object of type @o@. It also knows the expected
@@ -153,63 +181,66 @@ decodeFromParseResult (UnsafeDocumentDecoder decoder) = \case
 -- Using monads alone would lose (1), but applicatives can't do (2).
 data Decoder o a b = Decoder
   { schema :: SchemaOf o
-  , run :: (o, a) -> DecodeM (o, b)
+  , run :: a -> StateT (DecodeState o) DecodeM b
   }
 
 instance Category (Decoder o) where
   id = liftDecodeM pure
-  Decoder s1 bc . Decoder s2 ab = Decoder (s1 `schemaJoin` s2) $ ab >=> bc
+  Decoder sch1 bc . Decoder sch2 ab = Decoder (sch1 `schemaJoin` sch2) $ ab >=> bc
 instance Arrow (Decoder o) where
   arr f = liftDecodeM (pure . f)
-  Decoder s1 bc *** Decoder s2 bc' =
-    Decoder (s1 `schemaJoin` s2) $ \(o0, (b, b')) -> do
-      (o1, c) <- bc (o0, b)
-      (o2, c') <- bc' (o1, b')
-      pure (o2, (c, c'))
+  Decoder sch1 bc *** Decoder sch2 bc' =
+    Decoder (sch1 `schemaJoin` sch2) $ \(b, b') -> (,) <$> bc b <*> bc' b'
 instance ArrowChoice (Decoder o) where
-  Decoder s1 bc +++ Decoder s2 bc' =
-    Decoder (s1 `schemaAlt` s2) $ \case
-      (o, Left b) -> (fmap . fmap) Left $ bc (o, b)
-      (o, Right b') -> (fmap . fmap) Right $ bc' (o, b')
+  Decoder sch1 bc +++ Decoder sch2 bc' =
+    Decoder (sch1 `schemaAlt` sch2) $ either (fmap Left . bc) (fmap Right . bc')
 
 instance Functor (Decoder o a) where
-  fmap f (Decoder schema run) = Decoder schema $ ((fmap . fmap) f . run)
+  fmap f (Decoder schema run) = Decoder schema $ (fmap f . run)
 instance Applicative (Decoder o a) where
   pure = arr . const
-  Decoder s1 kf <*> Decoder s2 kx =
-    Decoder (s1 `schemaJoin` s2) $ \(o0, a) -> do
-      (o1, f) <- kf (o0, a)
-      (o2, x) <- kx (o1, a)
-      pure (o2, f x)
+  Decoder sch1 kf <*> Decoder sch2 kx =
+    Decoder (sch1 `schemaJoin` sch2) $ \a -> kf a <*> kx a
 instance Alternative (Decoder o a) where
-  empty = Decoder (SchemaOr []) (traverse $ \_ -> empty)
-  Decoder s1 run1 <|> Decoder s2 run2 = Decoder (s1 `schemaAlt` s2) $ \x -> run1 x <|> run2 x
-  some (Decoder s run) =
-    Decoder (SchemaSome s) $
-      let go (o0, a) = do
-            (o1, x) <- run (o0, a)
-            (o2, xs) <- go (o1, a) <|> pure (o1, [])
-            pure (o2, x : xs)
-       in go
-  many (Decoder s run) = empty <|> some (Decoder s run)
+  -- Can't use StateT's Alternative instance: https://hub.darcs.net/ross/transformers/issue/78
+  empty = Decoder (SchemaOr []) $ \_ -> StateT.StateT $ \_ -> empty
+  Decoder sch1 run1 <|> Decoder sch2 run2 =
+    Decoder (sch1 `schemaAlt` sch2) $ \a -> StateT.StateT $ \s -> do
+      StateT.runStateT (run1 a) s <|> StateT.runStateT (run2 a) s
+  some (Decoder sch run) =
+    Decoder (SchemaSome sch) $ \a ->
+      StateT.StateT $
+        let go s0 = do
+              (x, s1) <- StateT.runStateT (run a) s0
+              (xs, s2) <- go s1 <|> pure ([], s1)
+              pure (x : xs, s2)
+         in go
+  many (Decoder sch run) = empty <|> some (Decoder sch run)
 
 liftDecodeM :: (a -> DecodeM b) -> Decoder o a b
-liftDecodeM f = Decoder (SchemaAnd []) (traverse f)
+liftDecodeM f = Decoder (SchemaAnd []) (Trans.lift . f)
 
 withDecoder :: Decoder o a b -> (b -> DecodeM c) -> Decoder o a c
 withDecoder decoder f = decoder >>> liftDecodeM f
 
-runDecoder :: Decoder o () b -> o -> Either DecodeError b
-runDecoder decoder o = runDecodeM $ snd <$> decoder.run (o, ())
+runDecoder :: forall o a b. (HasDecodeHistory o) => Decoder o a b -> (o, a) -> DecodeM (DecodeState o, b)
+runDecoder decoder (o, a) = swap <$> StateT.runStateT (decoder.run a) initialState
+ where
+  initialState =
+    DecodeState
+      { object = o
+      , history = emptyDecodeHistory
+      }
+  swap ~(x, y) = (y, x)
 
 fail :: forall b o. Decoder o Text b
 fail = liftDecodeM failM
 
 debug :: forall o a. (Show o) => Decoder o a ()
 debug =
-  Decoder (SchemaAnd []) $ \(o, _) -> do
+  Decoder (SchemaAnd []) $ \_ -> do
+    o <- StateT.gets (.object)
     traceM $ "[kdl-hs] DEBUG: " ++ show o
-    pure (o, ())
 
 {----- DocumentDecoder -----}
 
@@ -219,10 +250,10 @@ document :: NodeListDecoder () a -> DocumentDecoder a
 document decoder =
   UnsafeDocumentDecoder
     decoder
-      { run = \(nodeList, ()) -> do
-          (nodeList', a) <- decoder.run (nodeList, ())
-          validateNodeList nodeList'
-          pure (nodeList', a)
+      { run = \() -> do
+          a <- decoder.run ()
+          Trans.lift . validateNodeList =<< StateT.gets (.object)
+          pure a
       }
 
 documentSchema :: DocumentDecoder a -> SchemaOf NodeList
@@ -231,6 +262,17 @@ documentSchema (UnsafeDocumentDecoder decoder) = decoder.schema
 {----- NodeListDecoder -----}
 
 type NodeListDecoder = Decoder NodeList
+instance HasDecodeHistory NodeList where
+  data DecodeHistory NodeList = DecodeHistory_NodeList
+    { nodesSeen :: Map Text Int
+    }
+  emptyDecodeHistory = DecodeHistory_NodeList{nodesSeen = Map.empty}
+
+mergeNodeListHistory :: DecodeHistory NodeList -> DecodeHistory NodeList -> DecodeHistory NodeList
+mergeNodeListHistory h1 h2 =
+  DecodeHistory_NodeList
+    { nodesSeen = Map.unionWith (+) h1.nodesSeen h2.nodesSeen
+    }
 
 validateNodeList :: NodeList -> DecodeM ()
 validateNodeList nodeList = do
@@ -287,8 +329,14 @@ nodeWith name typeAnns decoder = proc a -> do
   mb <- nodeWithMaybe name typeAnns decoder -< a
   case mb of
     Just b -> returnA -< b
-    -- FIXME: fix index
-    Nothing -> liftDecodeM (\_ -> decodeThrow DecodeError_ExpectedNode{name = name, index = 0}) -< ()
+    Nothing -> errorMissing -< ()
+ where
+  errorMissing =
+    Decoder (SchemaAnd []) $ \() -> do
+      index <- getIndex
+      Trans.lift $ decodeThrow DecodeError_ExpectedNode{name = name, index = index}
+
+  getIndex = Map.findWithDefault 0 name <$> StateT.gets (.history.nodesSeen)
 
 -- | Same as 'nodeWith', except returns Nothing if a node with the given name
 -- can't be found, instead of erroring.
@@ -296,13 +344,34 @@ nodeWithMaybe :: forall a b. (Typeable b) => Text -> [Text] -> BaseNodeDecoder a
 -- TODO: Detect duplicate `node` calls with the same name and fail to build a decoder
 nodeWithMaybe name =
   withNodeDecoder $ \decoder ->
-    Decoder (SchemaOne $ NodeNamed name decoder.schema) $ \(nodeList, a) -> do
-      case extractFirst ((== name) . (.obj.name.value)) nodeList.nodes of
-        Nothing -> pure (nodeList, Nothing)
-        Just (node_, nodes) -> do
-          -- FIXME: fix index
-          (_, b) <- addContext ContextNode{name = toIdentifier name, index = 0} $ decoder.run (node_, a)
-          pure (nodeList{nodes = nodes}, Just b)
+    Decoder (SchemaOne $ NodeNamed name decoder.schema) $ \a -> do
+      fmap snd <$> decodeFirstNodeWhere ((== name) . (.obj.name.value)) decoder a
+
+decodeFirstNodeWhere ::
+  (Node -> Bool) ->
+  NodeDecoder a b ->
+  a ->
+  StateT (DecodeState NodeList) DecodeM (Maybe (Node, b))
+decodeFirstNodeWhere matcher decoder a = do
+  nodes <- StateT.gets (.object.nodes)
+  case extractFirst matcher nodes of
+    Nothing -> do
+      pure Nothing
+    Just (node_, nodes') -> do
+      let name = node_.obj.name
+      index <- getIndex name
+      b <-
+        Trans.lift . addContext ContextNode{name = name, index = index} $
+          snd <$> runDecoder decoder (node_, a)
+      StateT.modify $ \s ->
+        s
+          { object = s.object{nodes = nodes'}
+          , history = s.history{nodesSeen = inc name.value s.history.nodesSeen}
+          }
+      pure $ Just (node_, b)
+ where
+  getIndex name = Map.findWithDefault 0 name.value <$> StateT.gets (.history.nodesSeen)
+  inc k = Map.insertWith (+) k 1
 
 -- | Decode all remaining nodes with the given decoder.
 --
@@ -348,14 +417,15 @@ remainingNodesWith :: forall a b. (Typeable b) => [Text] -> BaseNodeDecoder a b 
 -- TODO: Detect duplicate `remainingNodes` calls and fail to build a decoder
 remainingNodesWith =
   withNodeDecoder $ \decoder ->
-    Decoder (SchemaOne $ RemainingNodes decoder.schema) $ \(nodeList, a) -> do
-      nodeMap <-
-        fmap (Map.fromListWith (<>)) . forM nodeList.nodes $ \node_ -> do
-          let name = node_.obj.name
-          -- FIXME: fix index
-          (_, b) <- addContext ContextNode{name = name, index = 0} $ decoder.run (node_, a)
-          pure (name.value, [b])
-      pure (nodeList{nodes = []}, nodeMap)
+    Decoder (SchemaOne $ RemainingNodes decoder.schema) $ \a -> do
+      Map.fromListWith (<>) <$> go decoder a
+ where
+  go decoder a = do
+    decodeFirstNodeWhere (const True) decoder a >>= \case
+      Nothing -> pure []
+      Just (node_, b) -> do
+        nodeMap <- go decoder a
+        pure $ (node_.obj.name.value, [b]) : nodeMap
 
 -- | A helper to decode the first argument of the first node with the given name.
 -- A utility for nodes that are acting like a key-value store.
@@ -488,23 +558,25 @@ dashNodesAtWith name typeAnns decoder =
 
 annDecoder ::
   forall a b o r.
-  (Typeable b) =>
+  (HasDecodeHistory o, Typeable b) =>
   (TypeRep -> [Text] -> SchemaOf o -> SchemaItem (Ann o)) ->
   (Decoder (Ann o) a b -> r) ->
   [Text] ->
   Decoder o a b ->
   r
 annDecoder mkSchema k typeAnns decoder =
-  k . Decoder (SchemaOne schema) $ \(x, a) -> do
+  k . Decoder (SchemaOne schema) $ \a -> do
+    x <- StateT.gets (.object)
     case x.ann of
       Just givenAnn -> do
         let isValidAnn = Prelude.null typeAnns || givenAnn.value `elem` typeAnns
         unless isValidAnn $ do
-          decodeThrow DecodeError_MismatchedAnn{givenAnn = givenAnn, validAnns = typeAnns}
+          Trans.lift $ decodeThrow DecodeError_MismatchedAnn{givenAnn = givenAnn, validAnns = typeAnns}
       _ -> pure ()
     -- TODO: add typeHint to Context
-    (obj, b) <- decoder.run (x.obj, a)
-    pure (x{obj = obj}, b)
+    (decodeState, b) <- Trans.lift $ runDecoder decoder (x.obj, a)
+    StateT.modify $ \s -> s{object = s.object{obj = decodeState.object}}
+    pure b
  where
   typeHint = typeRep (Proxy @b)
   schema = mkSchema typeHint typeAnns decoder.schema
@@ -512,6 +584,9 @@ annDecoder mkSchema k typeAnns decoder =
 {----- NodeDecoder -----}
 
 type NodeDecoder = Decoder Node
+instance HasDecodeHistory Node where
+  data DecodeHistory Node = DecodeHistory_Node
+  emptyDecodeHistory = DecodeHistory_Node
 
 -- | FIXME: document
 withDecodeBaseNode :: forall a r. (DecodeBaseNode a) => ([Text] -> BaseNodeDecoder () a -> r) -> r
@@ -523,10 +598,10 @@ withNodeDecoder k typeAnns = annDecoder NodeSchema k typeAnns . validate
  where
   validate decoder =
     decoder
-      { run = \(baseNode, a) -> do
-          (baseNode', b) <- decoder.run (baseNode, a)
-          validateBaseNode baseNode'
-          pure (baseNode', b)
+      { run = \a -> do
+          b <- decoder.run a
+          Trans.lift . validateBaseNode =<< StateT.gets (.object)
+          pure b
       }
 
 validateBaseNode :: BaseNode -> DecodeM ()
@@ -538,6 +613,18 @@ validateBaseNode baseNode = do
 {----- BaseNodeDecoder -----}
 
 type BaseNodeDecoder = Decoder BaseNode
+instance HasDecodeHistory BaseNode where
+  data DecodeHistory BaseNode = DecodeHistory_BaseNode
+    { argsSeen :: Int
+    , propsSeen :: Set Identifier
+    , childrenHistory :: DecodeHistory NodeList
+    }
+  emptyDecodeHistory =
+    DecodeHistory_BaseNode
+      { argsSeen = 0
+      , propsSeen = Set.empty
+      , childrenHistory = emptyDecodeHistory
+      }
 
 -- | FIXME: document
 class (Typeable a) => DecodeBaseNode a where
@@ -547,8 +634,10 @@ class (Typeable a) => DecodeBaseNode a where
 
 instance DecodeBaseNode BaseNode where
   baseNodeDecoder =
-    Decoder SchemaUnknown $ \(baseNode, ()) ->
-      pure (emptyBaseNode baseNode.name, baseNode)
+    Decoder SchemaUnknown $ \() -> do
+      baseNode <- StateT.gets (.object)
+      StateT.modify $ \s -> s{object = emptyBaseNode baseNode.name}
+      pure baseNode
    where
     emptyBaseNode name =
       BaseNode
@@ -566,14 +655,25 @@ arg = withDecodeBaseValue argWith
 argWith :: forall a b. (Typeable b) => [Text] -> BaseValueDecoder a b -> BaseNodeDecoder a b
 argWith =
   withValueDecoder $ \decoder ->
-    Decoder (SchemaOne $ NodeArg decoder.schema) $ \(baseNode, a) -> do
-      (entry, entries) <-
-        -- FIXME: fix index
-        maybe (decodeThrow DecodeError_ExpectedArg{index = 0}) pure $
-          extractFirst (isNothing . (.name)) baseNode.entries
-      -- FIXME: fix index
-      (_, b) <- addContext ContextArg{index = 0} $ decoder.run (entry.value, a)
-      pure (baseNode{entries = entries}, b)
+    Decoder (SchemaOne $ NodeArg decoder.schema) $ \a -> do
+      index <- getIndex
+
+      entries <- StateT.gets (.object.entries)
+      (entry, entries') <-
+        maybe (Trans.lift $ decodeThrow DecodeError_ExpectedArg{index = index}) pure $
+          extractFirst (isNothing . (.name)) entries
+
+      b <-
+        Trans.lift . addContext ContextArg{index = index} $
+          snd <$> runDecoder decoder (entry.value, a)
+      StateT.modify $ \s ->
+        s
+          { object = s.object{entries = entries'}
+          , history = s.history{argsSeen = s.history.argsSeen + 1}
+          }
+      pure b
+ where
+  getIndex = StateT.gets (.history.argsSeen)
 
 -- | FIXME: document
 prop :: (DecodeBaseValue a) => Text -> BaseNodeDecoder () a
@@ -583,14 +683,39 @@ prop name = withDecodeBaseValue $ propWith name
 propWith :: forall a b. (Typeable b) => Text -> [Text] -> BaseValueDecoder a b -> BaseNodeDecoder a b
 propWith name =
   withValueDecoder $ \decoder ->
-    Decoder (SchemaOne $ NodeProp name decoder.schema) $ \(baseNode, a) -> do
-      let (props, entries) = partition (\entry -> ((.value) <$> entry.name) == Just name) baseNode.entries
-      case NonEmpty.nonEmpty props of
-        Nothing -> decodeThrow DecodeError_ExpectedProp{name = name}
-        Just propsNE -> do
-          let prop_ = NonEmpty.last propsNE
-          (_, b) <- addContext ContextProp{name = toIdentifier name} $ decoder.run (prop_.value, a)
-          pure (baseNode{entries = entries}, b)
+    Decoder (SchemaOne $ NodeProp name decoder.schema) $ \a -> do
+      decodeOnePropWhere (== name) decoder a
+        >>= maybe (Trans.lift $ decodeThrow DecodeError_ExpectedProp{name = name}) (pure . snd)
+
+decodeOnePropWhere ::
+  (Text -> Bool) ->
+  ValueDecoder a b ->
+  a ->
+  StateT (DecodeState BaseNode) DecodeM (Maybe (Identifier, b))
+decodeOnePropWhere matcher decoder a = do
+  entries <- StateT.gets (.object.entries)
+  case findProp entries of
+    Nothing -> pure Nothing
+    Just (name, prop_, entries') -> do
+      b <-
+        Trans.lift . addContext ContextProp{name = name} $
+          snd <$> runDecoder decoder (prop_.value, a)
+      StateT.modify $ \s ->
+        s
+          { object = s.object{entries = entries'}
+          , history = s.history{propsSeen = Set.insert name s.history.propsSeen}
+          }
+      pure $ Just (name, b)
+ where
+  isPropWhere f entry = (f . (.value) <$> entry.name) == Just True
+  findProp entries =
+    case break (isPropWhere matcher) entries of
+      (entries1, prop0@Entry{name = Just name} : remainingEntries) ->
+        -- Collect remaining props with the same name, latter props override earlier props
+        let (props, entries2) = partition (isPropWhere (== name.value)) remainingEntries
+         in Just (name, NonEmpty.last $ prop0 NonEmpty.:| props, entries1 <> entries2)
+      _ ->
+        Nothing
 
 -- | FIXME: document
 remainingProps :: (DecodeBaseValue a) => BaseNodeDecoder () (Map Text a)
@@ -600,31 +725,37 @@ remainingProps = withDecodeBaseValue remainingPropsWith
 remainingPropsWith :: forall a b. (Typeable b) => [Text] -> BaseValueDecoder a b -> BaseNodeDecoder a (Map Text b)
 remainingPropsWith =
   withValueDecoder $ \decoder ->
-    Decoder (SchemaOne $ NodeRemainingProps decoder.schema) $ \(baseNode, a) -> do
-      let (props, entries) = partitionEithers $ map getProp baseNode.entries
-      result <-
-        fmap Map.fromList . forM props $ \(name, prop_) -> do
-          (_, b) <- addContext ContextProp{name = name} $ decoder.run (prop_, a)
-          pure (name.value, b)
-      pure (baseNode{entries = entries}, result)
+    Decoder (SchemaOne $ NodeRemainingProps decoder.schema) $ \a -> do
+      Map.fromList <$> go decoder a
  where
-  getProp entry =
-    case entry.name of
-      Just name -> Left (name, entry.value)
-      _ -> Right entry
+  go decoder a =
+    decodeOnePropWhere (const True) decoder a >>= \case
+      Nothing -> pure []
+      Just (name, b) -> do
+        propMap <- go decoder a
+        pure $ (name.value, b) : propMap
 
 -- | FIXME: document
 children :: forall a b. NodeListDecoder a b -> BaseNodeDecoder a b
 children decoder =
-  Decoder (SchemaOne $ NodeChildren decoder.schema) $ \(baseNode, a) -> do
-    (children', result) <- decoder.run (fromMaybe emptyNodeList baseNode.children, a)
-    pure (baseNode{children = children' <$ baseNode.children}, result)
+  Decoder (SchemaOne $ NodeChildren decoder.schema) $ \a -> do
+    mChildren <- StateT.gets (.object.children)
+    (decodeState, b) <- Trans.lift $ runDecoder decoder (fromMaybe emptyNodeList mChildren, a)
+    StateT.modify $ \s ->
+      s
+        { object = s.object{children = decodeState.object <$ mChildren}
+        , history = s.history{childrenHistory = mergeNodeListHistory s.history.childrenHistory decodeState.history}
+        }
+    pure b
  where
   emptyNodeList = NodeList{nodes = [], format = Nothing}
 
 {----- ValueDecoder -----}
 
 type ValueDecoder = Decoder Value
+instance HasDecodeHistory Value where
+  data DecodeHistory Value = DecodeHistory_Value
+  emptyDecodeHistory = DecodeHistory_Value
 
 withDecodeBaseValue :: forall a r. (DecodeBaseValue a) => ([Text] -> BaseValueDecoder () a -> r) -> r
 withDecodeBaseValue k = k (baseValueTypeAnns (Proxy @a)) baseValueDecoder
@@ -635,6 +766,9 @@ withValueDecoder = annDecoder ValueSchema
 {----- BaseValueDecoder -----}
 
 type BaseValueDecoder = Decoder BaseValue
+instance HasDecodeHistory BaseValue where
+  data DecodeHistory BaseValue = DecodeHistory_BaseValue
+  emptyDecodeHistory = DecodeHistory_BaseValue
 
 -- | FIXME: document
 class (Typeable a) => DecodeBaseValue a where
@@ -669,7 +803,7 @@ instance (DecodeBaseValue a) => DecodeBaseValue (Maybe a) where
   baseValueDecoder = oneOf [Nothing <$ null, Just <$> baseValueDecoder]
 
 baseValueDecoderPrim :: SchemaOf BaseValue -> (BaseValue -> DecodeM b) -> BaseValueDecoder a b
-baseValueDecoderPrim schema f = Decoder schema $ \(v, _) -> (v,) <$> f v
+baseValueDecoderPrim schema f = Decoder schema $ \_ -> Trans.lift . f =<< StateT.gets (.object)
 
 any :: BaseValueDecoder a BaseValue
 any = baseValueDecoderPrim (SchemaOr $ map SchemaOne [minBound .. maxBound]) pure

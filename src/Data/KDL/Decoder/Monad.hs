@@ -17,12 +17,12 @@ FIXME: quickstart
 module Data.KDL.Decoder.Monad (
   decodeWith,
   decodeFileWith,
-  
+  decodeDocWith,
+
   -- * Decoder
   Decoder,
   DecodeError (..),
   module Data.KDL.Decoder.DecodeM,
-  runDecoder,
   fail,
   debug,
 
@@ -77,6 +77,11 @@ module Data.KDL.Decoder.Monad (
   Arrow.optional,
   Arrow.option,
   Arrow.some,
+
+  -- * Internal API
+  runDecoder,
+  Arrow.HasDecodeHistory (..),
+  Arrow.DecodeState (..),
 ) where
 
 import Control.Applicative (Alternative)
@@ -91,6 +96,7 @@ import Data.KDL.Decoder.Schema (
 import Data.KDL.Types (
   BaseNode,
   BaseValue,
+  Document,
   NodeList,
  )
 import Data.Map (Map)
@@ -103,6 +109,9 @@ decodeWith = coerce (Arrow.decodeWith @a)
 
 decodeFileWith :: forall a. DocumentDecoder a -> FilePath -> IO (Either DecodeError a)
 decodeFileWith = coerce (Arrow.decodeFileWith @a)
+
+decodeDocWith :: forall a. DocumentDecoder a -> Document -> Either DecodeError a
+decodeDocWith = coerce (Arrow.decodeDocWith @a)
 
 {----- Decoder -----}
 
@@ -122,10 +131,10 @@ newtype Decoder o a = Decoder (Arrow.Decoder o () a)
 
 instance Monad (Decoder o) where
   Decoder (Arrow.Decoder _ run1) >>= k =
-    Decoder . Arrow.Decoder SchemaUnknown $ \(o0, a) -> do
-      (o1, x) <- run1 (o0, a)
+    Decoder . Arrow.Decoder SchemaUnknown $ \a -> do
+      x <- run1 a
       let Decoder (Arrow.Decoder _ run2) = k x
-      run2 (o1, a)
+      run2 a
 
 -- | Drop the Monad Decoder back down to an Arrow Decoder.Content.
 --
@@ -136,8 +145,8 @@ withoutSchema (Decoder decoder) = decoder
 fail :: forall a o. Text -> Decoder o a
 fail msg = coerce (Arrow.arr (\() -> msg) Arrow.>>> Arrow.fail @a)
 
-runDecoder :: forall o a. Decoder o a -> o -> Either DecodeError a
-runDecoder = coerce (Arrow.runDecoder @o @a)
+runDecoder :: (Arrow.HasDecodeHistory o) => Decoder o a -> o -> DecodeM (Arrow.DecodeState o, a)
+runDecoder decoder o = Arrow.runDecoder (coerce decoder) (o, ())
 
 debug :: forall o. (Show o) => Decoder o ()
 debug = coerce (Arrow.debug @o @())
