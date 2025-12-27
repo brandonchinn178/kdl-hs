@@ -98,6 +98,7 @@ import Control.Monad (unless, (>=>))
 import Control.Monad.Trans.Class qualified as Trans
 import Control.Monad.Trans.State.Strict (StateT)
 import Control.Monad.Trans.State.Strict qualified as StateT
+import Data.Bits (finiteBitSize)
 import Data.Foldable (traverse_)
 import Data.Int (Int64)
 import Data.KDL.Decoder.DecodeM
@@ -203,7 +204,7 @@ instance Applicative (Decoder o a) where
     Decoder (sch1 `schemaJoin` sch2) $ \a -> kf a <*> kx a
 instance Alternative (Decoder o a) where
   -- Can't use StateT's Alternative instance: https://hub.darcs.net/ross/transformers/issue/78
-  empty = Decoder (SchemaOr []) $ \_ -> StateT.StateT $ \_ -> empty
+  empty = Decoder (SchemaOr []) $ \_ -> Trans.lift empty
   Decoder sch1 run1 <|> Decoder sch2 run2 =
     Decoder (sch1 `schemaAlt` sch2) $ \a -> StateT.StateT $ \s -> do
       StateT.runStateT (run1 a) s <|> StateT.runStateT (run2 a) s
@@ -215,7 +216,7 @@ instance Alternative (Decoder o a) where
               (xs, s2) <- go s1 <|> pure ([], s1)
               pure (x : xs, s2)
          in go
-  many (Decoder sch run) = empty <|> some (Decoder sch run)
+  many (Decoder sch run) = some (Decoder sch run) <|> pure []
 
 liftDecodeM :: (a -> DecodeM b) -> Decoder o a b
 liftDecodeM f = Decoder (SchemaAnd []) (Trans.lift . f)
@@ -784,6 +785,16 @@ instance DecodeBaseValue Text where
 instance DecodeBaseValue Integer where -- FIXME: Add Word8, Int8, ...
   baseValueTypeAnns _ = ["i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", "isize", "usize"]
   baseValueDecoder = toInteger <$> baseValueDecoder @Int64
+instance DecodeBaseValue Int where
+  baseValueTypeAnns _ =
+    concat
+      [ ["i8", "i16", "isize"]
+      , if bits >= 32 then ["i32"] else []
+      , if bits >= 64 then ["i64"] else []
+      ]
+   where
+    bits = finiteBitSize (0 :: Int)
+  baseValueDecoder = fromIntegral <$> baseValueDecoder @Int64
 instance DecodeBaseValue Int64 where
   baseValueTypeAnns _ = ["i64"]
   baseValueDecoder = withDecoder number $ \x -> do

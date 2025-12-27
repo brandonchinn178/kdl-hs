@@ -128,19 +128,49 @@ spec = do
       it "gets argument at a node" $ do
         let config = "foo \"bar\"; hello \"world\""
             decoder = KDL.document $ proc () -> do
-              hello <- KDL.argAt "hello" -< ()
-              foo <- KDL.argAt "foo" -< ()
+              hello <- KDL.argAt @Text "hello" -< ()
+              foo <- KDL.argAt @Text "foo" -< ()
               returnA -< (hello, foo)
-        KDL.decodeWith decoder config `shouldBe` Right (Text.pack "world", Text.pack "bar")
+        KDL.decodeWith decoder config `shouldBe` Right ("world", "bar")
 
       it "fails if no node" $ do
-        pure ()
+        let config = "other_node"
+            decoder = KDL.document $ proc () -> do
+              KDL.argAt @Int "foo" -< ()
+        KDL.decodeWith decoder config
+          `shouldSatisfy` decodeErrorEq
+            [ "At: <root>"
+            , "  Expected node: foo"
+            ]
 
       it "fails if node has no args" $ do
-        pure ()
+        let config = "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.argAt @Int "foo" -< ()
+        KDL.decodeWith decoder config
+          `shouldSatisfy` decodeErrorEq
+            [ "At: foo #0"
+            , "  Expected arg #0"
+            ]
 
     describe "argsAt" $ do
-      pure ()
+      it "gets arguments at a node" $ do
+        let config = "foo 1 2 3"
+            decoder = KDL.document $ proc () -> do
+              KDL.argsAt "foo" -< ()
+        KDL.decodeWith decoder config `shouldBe` Right [1, 2, 3 :: Int]
+
+      it "returns empty list if no node" $ do
+        let config = ""
+            decoder = KDL.document $ proc () -> do
+              KDL.argsAt @Int "foo" -< ()
+        KDL.decodeWith decoder config `shouldBe` Right ([] :: [Int])
+
+      it "returns empty list if node has no args" $ do
+        let config = "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.argsAt "foo" -< ()
+        KDL.decodeWith decoder config `shouldBe` Right ([] :: [Int])
 
     describe "dashChildrenAt" $ do
       pure ()
