@@ -91,7 +91,7 @@ import Control.Applicative (
   Alternative (..),
   optional,
  )
-import Control.Arrow (Arrow (..), ArrowChoice (..), returnA, (>>>))
+import Control.Arrow (Arrow (..), ArrowChoice (..), (>>>))
 import Control.Category (Category)
 import Control.Category qualified
 import Control.Monad (unless, (>=>))
@@ -326,27 +326,16 @@ node name = withDecodeBaseNode $ nodeWith name
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob", "Charlie", "Danielle"]
 -- @
 nodeWith :: forall a b. (Typeable b) => Text -> [Text] -> BaseNodeDecoder a b -> NodeListDecoder a b
-nodeWith name typeAnns decoder = proc a -> do
-  mb <- nodeWithMaybe name typeAnns decoder -< a
-  case mb of
-    Just b -> returnA -< b
-    Nothing -> errorMissing -< ()
- where
-  errorMissing =
-    Decoder (SchemaAnd []) $ \() -> do
-      index <- getIndex
-      Trans.lift $ decodeThrow DecodeError_ExpectedNode{name = name, index = index}
-
-  getIndex = Map.findWithDefault 0 name <$> StateT.gets (.history.nodesSeen)
-
--- | Same as 'nodeWith', except returns Nothing if a node with the given name
--- can't be found, instead of erroring.
-nodeWithMaybe :: forall a b. (Typeable b) => Text -> [Text] -> BaseNodeDecoder a b -> NodeListDecoder a (Maybe b)
--- TODO: Detect duplicate `node` calls with the same name and fail to build a decoder
-nodeWithMaybe name =
+nodeWith name =
   withNodeDecoder $ \decoder ->
     Decoder (SchemaOne $ NodeNamed name decoder.schema) $ \a -> do
-      fmap snd <$> decodeFirstNodeWhere ((== name) . (.obj.name.value)) decoder a
+      decodeFirstNodeWhere ((== name) . (.obj.name.value)) decoder a >>= \case
+        Just (_, b) -> pure b
+        Nothing -> do
+          index <- getIndex
+          Trans.lift $ decodeThrow DecodeError_ExpectedNode{name = name, index = index}
+ where
+  getIndex = Map.findWithDefault 0 name <$> StateT.gets (.history.nodesSeen)
 
 decodeFirstNodeWhere ::
   (Node -> Bool) ->
@@ -361,14 +350,11 @@ decodeFirstNodeWhere matcher decoder a = do
     Just (node_, nodes') -> do
       let name = node_.obj.name
       index <- getIndex name
+      StateT.modify $ \s -> s{object = s.object{nodes = nodes'}}
       b <-
-        Trans.lift . addContext ContextNode{name = name, index = index} $
+        Trans.lift . makeFatal . addContext ContextNode{name = name, index = index} $
           snd <$> runDecoder decoder (node_, a)
-      StateT.modify $ \s ->
-        s
-          { object = s.object{nodes = nodes'}
-          , history = s.history{nodesSeen = inc name.value s.history.nodesSeen}
-          }
+      StateT.modify $ \s -> s{history = s.history{nodesSeen = inc name.value s.history.nodesSeen}}
       pure $ Just (node_, b)
  where
   getIndex name = Map.findWithDefault 0 name.value <$> StateT.gets (.history.nodesSeen)
@@ -449,7 +435,7 @@ argAt name = nodeWith name [] arg
 -- | A helper to decode all the arguments of the first node with the given name.
 -- A utility for nodes that are acting like a key-value store with a list of values.
 --
--- This is different from 'many (argAt "foo")', as that would find multiple nodes
+-- This is different from @many (argAt "foo")@, as that would find multiple nodes
 -- named "foo" and get the first arg from each.
 --
 -- == __Example__
@@ -465,7 +451,7 @@ argAt name = nodeWith name [] arg
 -- KDL.decodeWith decoder config == Right ["a@example.com", "b@example.com"]
 -- @
 argsAt :: (DecodeBaseValue a) => Text -> NodeListDecoder () [a]
-argsAt name = fmap (fromMaybe []) $ nodeWithMaybe name [] $ many arg
+argsAt name = option [] $ nodeWith name [] $ many arg
 
 -- | A helper for decoding child values in a list following the KDL convention of being named "-".
 --
@@ -551,7 +537,7 @@ dashNodesAt name = withDecodeBaseNode $ dashNodesAtWith name
 -- @
 dashNodesAtWith :: forall a b. (Typeable b) => Text -> [Text] -> BaseNodeDecoder a b -> NodeListDecoder a [b]
 dashNodesAtWith name typeAnns decoder =
-  fmap (fromMaybe []) . nodeWithMaybe name [] $
+  option [] . nodeWith name [] $
     children $
       many (nodeWith "-" typeAnns decoder)
 
@@ -663,15 +649,12 @@ argWith =
       (entry, entries') <-
         maybe (Trans.lift $ decodeThrow DecodeError_ExpectedArg{index = index}) pure $
           extractFirst (isNothing . (.name)) entries
+      StateT.modify $ \s -> s{object = s.object{entries = entries'}}
 
       b <-
-        Trans.lift . addContext ContextArg{index = index} $
+        Trans.lift . makeFatal . addContext ContextArg{index = index} $
           snd <$> runDecoder decoder (entry.value, a)
-      StateT.modify $ \s ->
-        s
-          { object = s.object{entries = entries'}
-          , history = s.history{argsSeen = s.history.argsSeen + 1}
-          }
+      StateT.modify $ \s -> s{history = s.history{argsSeen = s.history.argsSeen + 1}}
       pure b
  where
   getIndex = StateT.gets (.history.argsSeen)
@@ -698,14 +681,11 @@ decodeOnePropWhere matcher decoder a = do
   case findProp entries of
     Nothing -> pure Nothing
     Just (name, prop_, entries') -> do
+      StateT.modify $ \s -> s{object = s.object{entries = entries'}}
       b <-
-        Trans.lift . addContext ContextProp{name = name} $
+        Trans.lift . makeFatal . addContext ContextProp{name = name} $
           snd <$> runDecoder decoder (prop_.value, a)
-      StateT.modify $ \s ->
-        s
-          { object = s.object{entries = entries'}
-          , history = s.history{propsSeen = Set.insert name s.history.propsSeen}
-          }
+      StateT.modify $ \s -> s{history = s.history{propsSeen = Set.insert name s.history.propsSeen}}
       pure $ Just (name, b)
  where
   isPropWhere f entry = (f . (.value) <$> entry.name) == Just True
