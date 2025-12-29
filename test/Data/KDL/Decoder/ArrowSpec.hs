@@ -5,6 +5,7 @@
 module Data.KDL.Decoder.ArrowSpec (spec) where
 
 import Control.Arrow (returnA)
+import Control.Monad (forM_)
 import Data.KDL.Decoder.Arrow qualified as KDL
 import Data.KDL.Types (
   Ann (..),
@@ -20,8 +21,8 @@ import Data.Text qualified as Text
 import Skeletest
 import Skeletest.Predicate qualified as P
 
-decodeErrorEq :: [Text] -> Predicate IO (Either KDL.DecodeError a)
-decodeErrorEq msgs = P.left (KDL.renderDecodeError P.>>> P.eq msg)
+decodeErrorMsg :: [Text] -> Predicate IO (Either KDL.DecodeError a)
+decodeErrorMsg msgs = P.left (KDL.renderDecodeError P.>>> P.eq msg)
  where
   msg = Text.intercalate "\n" msgs
 
@@ -85,7 +86,7 @@ spec = do
               foo2 <- KDL.node @BaseNode "foo" -< ()
               returnA -< (foo1, foo2)
         KDL.decodeWith decoder config
-          `shouldSatisfy` decodeErrorEq
+          `shouldSatisfy` decodeErrorMsg
             [ "At: <root>"
             , "  Expected another node: foo"
             ]
@@ -138,7 +139,7 @@ spec = do
             decoder = KDL.document $ proc () -> do
               KDL.argAt @Int "foo" -< ()
         KDL.decodeWith decoder config
-          `shouldSatisfy` decodeErrorEq
+          `shouldSatisfy` decodeErrorMsg
             [ "At: <root>"
             , "  Expected node: foo"
             ]
@@ -148,7 +149,7 @@ spec = do
             decoder = KDL.document $ proc () -> do
               KDL.argAt @Int "foo" -< ()
         KDL.decodeWith decoder config
-          `shouldSatisfy` decodeErrorEq
+          `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
             , "  Expected arg #0"
             ]
@@ -173,7 +174,43 @@ spec = do
         KDL.decodeWith decoder config `shouldBe` Right ([] :: [Int])
 
     describe "dashChildrenAt" $ do
-      pure ()
+      it "gets children at a node" $ do
+        let config = "foo { - 1; - 2; - 3; }"
+            decoder = KDL.document $ proc () -> do
+              KDL.dashChildrenAt "foo" -< ()
+        KDL.decodeWith decoder config `shouldBe` Right [1, 2, 3 :: Int]
+
+      it "returns empty list if no node" $ do
+        let config = ""
+            decoder = KDL.document $ proc () -> do
+              KDL.dashChildrenAt @Int "foo" -< ()
+        KDL.decodeWith decoder config `shouldBe` Right ([] :: [Int])
+
+      it "returns empty list if node has no children" $ do
+        forM_ ["foo", "foo {}"] $ \config -> do
+          let decoder = KDL.document $ proc () -> do
+                KDL.dashChildrenAt "foo" -< ()
+          KDL.decodeWith decoder config `shouldBe` Right ([] :: [Int])
+
+      it "fails if dash children have multiple args" $ do
+        let config = "foo { - 1 2; - 3 4; }"
+            decoder = KDL.document $ proc () -> do
+              KDL.dashChildrenAt @Int "foo" -< ()
+        KDL.decodeWith decoder config
+          `shouldSatisfy` decodeErrorMsg
+            [ "At: foo #0 > - #0"
+            , "  Unexpected entries: [Entry {name = Nothing, value = Ann {ann = Nothing, obj = Number 2.0, format = Nothing}, format = Nothing}]"
+            ]
+
+      it "fails if node has non-dash children" $ do
+        let config = "foo { - 1; bar 1 2 3; }"
+            decoder = KDL.document $ proc () -> do
+              KDL.dashChildrenAt @Int "foo" -< ()
+        KDL.decodeWith decoder config
+          `shouldSatisfy` decodeErrorMsg
+            [ "At: foo #0"
+            , "  Unexpected nodes: [Ann {ann = Nothing, obj = BaseNode {name = Identifier {value = \"bar\", format = Nothing}, entries = [Entry {name = Nothing, value = Ann {ann = Nothing, obj = Number 1.0, format = Nothing}, format = Nothing},Entry {name = Nothing, value = Ann {ann = Nothing, obj = Number 2.0, format = Nothing}, format = Nothing},Entry {name = Nothing, value = Ann {ann = Nothing, obj = Number 3.0, format = Nothing}, format = Nothing}], children = Just (NodeList {nodes = [], format = Nothing}), format = Nothing}, format = Nothing}]"
+            ]
 
     describe "dashNodesAt" $ do
       pure ()
