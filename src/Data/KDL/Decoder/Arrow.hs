@@ -99,7 +99,6 @@ import Control.Monad.Trans.Class qualified as Trans
 import Control.Monad.Trans.State.Strict (StateT)
 import Control.Monad.Trans.State.Strict qualified as StateT
 import Data.Bits (finiteBitSize)
-import Data.Foldable (traverse_)
 import Data.Int (Int64)
 import Data.KDL.Decoder.DecodeM
 import Data.KDL.Decoder.Schema (
@@ -253,7 +252,7 @@ document decoder =
     decoder
       { run = \() -> do
           a <- decoder.run ()
-          Trans.lift . validateNodeList =<< StateT.gets (.object)
+          validateNodeList
           pure a
       }
 
@@ -269,16 +268,28 @@ instance HasDecodeHistory NodeList where
     }
   emptyDecodeHistory = DecodeHistory_NodeList{nodesSeen = Map.empty}
 
+getNodeIndex :: Text -> DecodeState NodeList -> Int
+getNodeIndex name = Map.findWithDefault 0 name . (.history.nodesSeen)
+
 mergeNodeListHistory :: DecodeHistory NodeList -> DecodeHistory NodeList -> DecodeHistory NodeList
 mergeNodeListHistory h1 h2 =
   DecodeHistory_NodeList
     { nodesSeen = Map.unionWith (+) h1.nodesSeen h2.nodesSeen
     }
 
-validateNodeList :: NodeList -> DecodeM ()
-validateNodeList nodeList = do
-  unless (Prelude.null nodeList.nodes) $
-    decodeThrow (DecodeError_UnknownNodes nodeList.nodes)
+validateNodeList :: StateT (DecodeState NodeList) DecodeM ()
+validateNodeList = do
+  nodeList <- StateT.gets (.object)
+  case nodeList.nodes of
+    [] -> pure ()
+    node_ : _ -> do
+      let identifier = node_.obj.name
+      index <- StateT.gets (getNodeIndex identifier.value)
+      Trans.lift . decodeThrow $
+        DecodeError_UnexpectedNode
+          { identifier = identifier
+          , index = index
+          }
 
 -- | Decode a node with the given name and decoder.
 --
@@ -332,10 +343,8 @@ nodeWith name =
       decodeFirstNodeWhere ((== name) . (.obj.name.value)) decoder a >>= \case
         Just (_, b) -> pure b
         Nothing -> do
-          index <- getIndex
+          index <- StateT.gets (getNodeIndex name)
           Trans.lift $ decodeThrow DecodeError_ExpectedNode{name = name, index = index}
- where
-  getIndex = Map.findWithDefault 0 name <$> StateT.gets (.history.nodesSeen)
 
 decodeFirstNodeWhere ::
   (Node -> Bool) ->
@@ -349,7 +358,7 @@ decodeFirstNodeWhere matcher decoder a = do
       pure Nothing
     Just (node_, nodes') -> do
       let name = node_.obj.name
-      index <- getIndex name
+      index <- StateT.gets (getNodeIndex name.value)
       StateT.modify $ \s -> s{object = s.object{nodes = nodes'}}
       b <-
         Trans.lift . makeFatal . addContext ContextNode{name = name, index = index} $
@@ -357,7 +366,6 @@ decodeFirstNodeWhere matcher decoder a = do
       StateT.modify $ \s -> s{history = s.history{nodesSeen = inc name.value s.history.nodesSeen}}
       pure $ Just (node_, b)
  where
-  getIndex name = Map.findWithDefault 0 name.value <$> StateT.gets (.history.nodesSeen)
   inc k = Map.insertWith (+) k 1
 
 -- | Decode all remaining nodes with the given decoder.
@@ -587,15 +595,37 @@ withNodeDecoder k typeAnns = annDecoder NodeSchema k typeAnns . validate
     decoder
       { run = \a -> do
           b <- decoder.run a
-          Trans.lift . validateBaseNode =<< StateT.gets (.object)
+          validateBaseNode
           pure b
       }
 
-validateBaseNode :: BaseNode -> DecodeM ()
-validateBaseNode baseNode = do
-  unless (Prelude.null baseNode.entries) $
-    decodeThrow (DecodeError_UnknownEntries baseNode.entries)
-  traverse_ validateNodeList baseNode.children
+validateBaseNode :: StateT (DecodeState BaseNode) DecodeM ()
+validateBaseNode = do
+  baseNode <- StateT.gets (.object)
+  case baseNode.entries of
+    [] -> pure ()
+    Entry{name = Nothing, value} : _ -> do
+      index <- StateT.gets getArgIndex
+      Trans.lift . decodeThrow $
+        DecodeError_UnexpectedArg
+          { index = index
+          , value = value
+          }
+    Entry{name = Just identifier, value} : _ -> do
+      Trans.lift . decodeThrow $
+        DecodeError_UnexpectedProp
+          { identifier = identifier
+          , value = value
+          }
+  case baseNode.children of
+    Nothing -> pure ()
+    Just children_ -> do
+      childrenHistory <- StateT.gets (.history.childrenHistory)
+      Trans.lift . StateT.evalStateT validateNodeList $
+        DecodeState
+          { object = children_
+          , history = childrenHistory
+          }
 
 {----- BaseNodeDecoder -----}
 
@@ -612,6 +642,9 @@ instance HasDecodeHistory BaseNode where
       , propsSeen = Set.empty
       , childrenHistory = emptyDecodeHistory
       }
+
+getArgIndex :: DecodeState BaseNode -> Int
+getArgIndex = (.history.argsSeen)
 
 -- | FIXME: document
 class (Typeable a) => DecodeBaseNode a where
@@ -643,7 +676,7 @@ argWith :: forall a b. (Typeable b) => [Text] -> BaseValueDecoder a b -> BaseNod
 argWith =
   withValueDecoder $ \decoder ->
     Decoder (SchemaOne $ NodeArg decoder.schema) $ \a -> do
-      index <- getIndex
+      index <- StateT.gets getArgIndex
 
       entries <- StateT.gets (.object.entries)
       (entry, entries') <-
@@ -656,8 +689,6 @@ argWith =
           snd <$> runDecoder decoder (entry.value, a)
       StateT.modify $ \s -> s{history = s.history{argsSeen = s.history.argsSeen + 1}}
       pure b
- where
-  getIndex = StateT.gets (.history.argsSeen)
 
 -- | FIXME: document
 prop :: (DecodeBaseValue a) => Text -> BaseNodeDecoder () a

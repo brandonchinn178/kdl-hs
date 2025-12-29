@@ -49,6 +49,7 @@ module Data.KDL.Types (
   -- * Value
   Value,
   BaseValue (..),
+  renderValue,
   renderBaseValue,
 
   -- * Ann
@@ -216,6 +217,11 @@ annObj = (.obj)
 annFormat :: Ann a -> Maybe AnnFormat
 annFormat = (.format)
 
+renderAnnWith :: (a -> Text) -> Ann a -> Text
+renderAnnWith renderObj Ann{..} = maybe "" (parens . renderIdentifier) ann <> renderObj obj
+ where
+  parens s = "(" <> s <> ")"
+
 {----- Node -----}
 
 type Node = Ann BaseNode
@@ -318,6 +324,9 @@ data BaseValue
   | Bool Bool
   | Null
   deriving (Show, Eq)
+
+renderValue :: Value -> Text
+renderValue = renderAnnWith renderBaseValue
 
 renderBaseValue :: BaseValue -> Text
 renderBaseValue = \case

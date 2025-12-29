@@ -22,11 +22,11 @@ module Data.KDL.Decoder.DecodeM (
 import Control.Applicative (Alternative (..))
 import Data.KDL.Types (
   BaseValue,
-  Entry,
   Identifier,
-  Node,
+  Value,
   renderBaseValue,
   renderIdentifier,
+  renderValue,
  )
 import Data.Map qualified as Map
 import Data.Text (Text)
@@ -71,8 +71,9 @@ data BaseDecodeError
   | DecodeError_ExpectedProp {name :: Text}
   | DecodeError_MismatchedAnn {givenAnn :: Identifier, validAnns :: [Text]}
   | DecodeError_BaseValueDecodeFail {expectedType :: Text, baseValue :: BaseValue}
-  | DecodeError_UnknownNodes [Node]
-  | DecodeError_UnknownEntries [Entry]
+  | DecodeError_UnexpectedNode {identifier :: Identifier, index :: Int}
+  | DecodeError_UnexpectedArg {index :: Int, value :: Value}
+  | DecodeError_UnexpectedProp {identifier :: Identifier, value :: Value}
   deriving (Show, Eq)
 
 instance Functor DecodeM where
@@ -139,8 +140,8 @@ renderDecodeError = Text.intercalate "\n" . map renderCtxErrors . groupCtxErrors
     | null items = "<root>"
     | otherwise = Text.intercalate " > " . map renderCtxItem $ items
   renderCtxItem = \case
-    ContextNode{..} -> renderIdentifier name <> " #" <> (Text.pack . show) index
-    ContextArg{..} -> "arg #" <> (Text.pack . show) index
+    ContextNode{..} -> renderIdentifier name <> " #" <> showT index
+    ContextArg{..} -> "arg #" <> showT index
     ContextProp{..} -> "prop " <> renderIdentifier name
 
   renderErrors = map (("  " <>) . renderError)
@@ -150,9 +151,14 @@ renderDecodeError = Text.intercalate "\n" . map renderCtxErrors . groupCtxErrors
     DecodeError_ExpectedNode{..}
       | index == 0 -> "Expected node: " <> name
       | otherwise -> "Expected another node: " <> name
-    DecodeError_ExpectedArg{..} -> "Expected arg #" <> (Text.pack . show) index
+    DecodeError_ExpectedArg{..} -> "Expected arg #" <> showT index
     DecodeError_ExpectedProp{..} -> "Expected prop: " <> name
-    DecodeError_MismatchedAnn{..} -> "Expected one of " <> (Text.pack . show) validAnns <> ", got: " <> renderIdentifier givenAnn
+    DecodeError_MismatchedAnn{..} -> "Expected one of " <> showT validAnns <> ", got: " <> renderIdentifier givenAnn
     DecodeError_BaseValueDecodeFail{..} -> "Expected " <> expectedType <> ", got: " <> renderBaseValue baseValue
-    DecodeError_UnknownNodes nodes -> "Unexpected nodes: " <> (Text.pack . show) nodes -- TODO: show better
-    DecodeError_UnknownEntries entries -> "Unexpected entries: " <> (Text.pack . show) entries -- TODO: show better
+    DecodeError_UnexpectedNode{..} -> "Unexpected node: " <> renderIdentifier identifier <> " #" <> showT index
+    DecodeError_UnexpectedArg{..} -> "Unexpected arg #" <> showT index <> ": " <> renderValue value
+    DecodeError_UnexpectedProp{..} -> "Unexpected prop " <> renderIdentifier identifier <> ": " <> renderValue value
+
+  -- Replace with Text.show after requiring at least text-2.1.2
+  showT :: (Show a) => a -> Text
+  showT = Text.pack . show

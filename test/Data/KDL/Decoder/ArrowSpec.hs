@@ -199,7 +199,7 @@ spec = do
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > - #0"
-            , "  Unexpected entries: [Entry {name = Nothing, value = Ann {ann = Nothing, obj = Number 2.0, format = Nothing}, format = Nothing}]"
+            , "  Unexpected arg #1: 2.0"
             ]
 
       it "fails if node has non-dash children" $ do
@@ -209,7 +209,7 @@ spec = do
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
-            , "  Unexpected nodes: [Ann {ann = Nothing, obj = BaseNode {name = Identifier {value = \"bar\", format = Nothing}, entries = [Entry {name = Nothing, value = Ann {ann = Nothing, obj = Number 1.0, format = Nothing}, format = Nothing},Entry {name = Nothing, value = Ann {ann = Nothing, obj = Number 2.0, format = Nothing}, format = Nothing},Entry {name = Nothing, value = Ann {ann = Nothing, obj = Number 3.0, format = Nothing}, format = Nothing}], children = Just (NodeList {nodes = [], format = Nothing}), format = Nothing}, format = Nothing}]"
+            , "  Unexpected node: bar #0"
             ]
 
     describe "dashNodesAt" $ do
