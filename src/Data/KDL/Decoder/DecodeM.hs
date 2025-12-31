@@ -144,7 +144,7 @@ renderDecodeError = Text.intercalate "\n" . map renderCtxErrors . groupCtxErrors
     ContextArg{..} -> "arg #" <> showT index
     ContextProp{..} -> "prop " <> renderIdentifier name
 
-  renderErrors = map (("  " <>) . renderError)
+  renderErrors = map ("  " <>) . concatMap (Text.lines . renderError)
   renderError = \case
     DecodeError_Custom msg -> msg
     DecodeError_ParseError msg -> msg
@@ -153,11 +153,11 @@ renderDecodeError = Text.intercalate "\n" . map renderCtxErrors . groupCtxErrors
       | otherwise -> "Expected another node: " <> name
     DecodeError_ExpectedArg{..} -> "Expected arg #" <> showT index
     DecodeError_ExpectedProp{..} -> "Expected prop: " <> name
-    DecodeError_MismatchedAnn{..} -> "Expected one of " <> showT validAnns <> ", got: " <> renderIdentifier givenAnn
+    DecodeError_MismatchedAnn{..} -> "Expected annotation to be one of " <> showT validAnns <> ", got: " <> renderIdentifier givenAnn
     DecodeError_ValueDecodeFail{..} -> "Expected " <> expectedType <> ", got: " <> renderValue value
     DecodeError_UnexpectedNode{..} -> "Unexpected node: " <> renderIdentifier identifier <> " #" <> showT index
     DecodeError_UnexpectedArg{..} -> "Unexpected arg #" <> showT index <> ": " <> renderValue value
-    DecodeError_UnexpectedProp{..} -> "Unexpected prop " <> renderIdentifier identifier <> ": " <> renderValue value
+    DecodeError_UnexpectedProp{..} -> "Unexpected prop: " <> renderIdentifier identifier <> "=" <> renderValue value
 
   -- Replace with Text.show after requiring at least text-2.1.2
   showT :: (Show a) => a -> Text

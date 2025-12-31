@@ -206,7 +206,7 @@ node = coerce (Arrow.node @a)
 --     (Dog)person "Fido"
 --     """
 --   decoder = KDL.document $ do
---     many . KDL.nodeWith "person" . KDL.nodeWith ["Person"] $ KDL.arg
+--     many . KDL.nodeWith "person" ["Person"] $ KDL.arg
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob", "Charlie", "Danielle"]
 -- @
 nodeWith :: forall a. (Typeable a) => Text -> [Text] -> NodeDecoder a -> NodeListDecoder a
@@ -249,7 +249,7 @@ remainingNodes = coerce (Arrow.remainingNodes @a)
 --     lint "pkg1"
 --     """
 --   decoder = KDL.document $ do
---     KDL.remainingNodes . KDL.nodeWith [] $ KDL.arg
+--     KDL.remainingNodesWith [] KDL.arg
 -- KDL.decodeWith decoder config == Right (Map.fromList [("build", ["pkg1", "pkg2"]), ("lint", ["pkg1"])])
 -- @
 remainingNodesWith :: forall a. (Typeable a) => [Text] -> NodeDecoder a -> NodeListDecoder (Map Text [a])
@@ -325,7 +325,7 @@ dashChildrenAt = coerce (Arrow.dashChildrenAt @a)
 --     }
 --     """
 --   decoder = KDL.document $ do
---     KDL.dashChildrenAtWith "attendees" $ KDL.valueWith [] KDL.text
+--     KDL.dashChildrenAtWith "attendees" [] KDL.text
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob"]
 -- @
 dashChildrenAtWith :: forall a. (Typeable a) => Text -> [Text] -> ValueDecoder a -> NodeListDecoder [a]
@@ -370,10 +370,10 @@ dashNodesAt = coerce (Arrow.dashNodesAt @a)
 --     }
 --     """
 --   decoder = KDL.document $ do
---     KDL.dashNodesAtWith "attendees" $ KDL.nodeWith [] KDL.arg
+--     KDL.dashNodesAtWith "attendees" [] KDL.arg
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob"]
 -- @
-dashNodesAtWith :: forall a. (Typeable a) => Text -> [Text] -> NodeDecoder a -> NodeListDecoder [a]
+dashNodesAtWith :: forall a. (Typeable a) => Text -> NodeDecoder a -> NodeListDecoder [a]
 dashNodesAtWith = coerce (Arrow.dashNodesAtWith @() @a)
 
 {----- Decoding Node -----}

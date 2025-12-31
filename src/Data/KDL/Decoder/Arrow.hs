@@ -52,6 +52,10 @@ module Data.KDL.Decoder.Arrow (
   dashChildrenAtWith,
   dashNodesAtWith,
 
+  -- ** Explicitly specify ValueDecoder
+  argAtWith,
+  argsAtWith,
+
   -- * Node
   NodeDecoder,
   DecodeNode (..),
@@ -73,9 +77,9 @@ module Data.KDL.Decoder.Arrow (
   number,
   bool,
   null,
-  oneOf,
 
   -- * Combinators
+  oneOf,
   many,
   optional,
   option,
@@ -323,14 +327,11 @@ node name = withDecodeNode $ nodeWith name
 --   config =
 --     """
 --     person "Alice"
---     person "Bob"
---     person "Charlie"
---     (Person)person "Danielle"
---     (Dog)person "Fido"
+--     (Person)person "Bob"
 --     """
 --   decoder = KDL.document $ proc () -> do
---     many . KDL.nodeWith "person" . KDL.nodeWith ["Person"] $ KDL.arg -< ()
--- KDL.decodeWith decoder config == Right ["Alice", "Bob", "Charlie", "Danielle"]
+--     many . KDL.nodeWith "person" ["Person"] $ KDL.arg -< ()
+-- KDL.decodeWith decoder config == Right ["Alice", "Bob"]
 -- @
 nodeWith :: forall a b. (Typeable b) => Text -> [Text] -> NodeDecoder a b -> NodeListDecoder a b
 nodeWith name =
@@ -400,7 +401,7 @@ remainingNodes = withDecodeNode remainingNodesWith
 --     lint "pkg1"
 --     """
 --   decoder = KDL.document $ proc () -> do
---     KDL.remainingNodes . KDL.nodeWith [] $ KDL.arg -< ()
+--     KDL.remainingNodesWith [] KDL.arg -< ()
 -- KDL.decodeWith decoder config == Right (Map.fromList [("build", ["pkg1", "pkg2"]), ("lint", ["pkg1"])])
 -- @
 remainingNodesWith :: forall a b. (Typeable b) => [Text] -> NodeDecoder a b -> NodeListDecoder a (Map Text [b])
@@ -433,7 +434,24 @@ remainingNodesWith =
 -- KDL.decodeWith decoder config == Right True
 -- @
 argAt :: (DecodeValue a) => Text -> NodeListDecoder () a
-argAt name = nodeWith name [] arg
+argAt name = withDecodeValue $ argAtWith name
+
+-- | Same as 'argAt', except explicitly specify the 'ValueDecoder' instead of using 'DecodeValue'
+--
+-- == __Example__
+--
+-- @
+-- let
+--   config =
+--     """
+--     verbose #true
+--     """
+--   decoder = KDL.document $ proc () -> do
+--     KDL.argAtWith "verbose" [] KDL.bool -< ()
+-- KDL.decodeWith decoder config == Right True
+-- @
+argAtWith :: (Typeable b) => Text -> [Text] -> ValueDecoder a b -> NodeListDecoder a b
+argAtWith name typeAnns decoder = nodeWith name [] $ argWith typeAnns decoder
 
 -- | A helper to decode all the arguments of the first node with the given name.
 -- A utility for nodes that are acting like a key-value store with a list of values.
@@ -454,7 +472,24 @@ argAt name = nodeWith name [] arg
 -- KDL.decodeWith decoder config == Right ["a@example.com", "b@example.com"]
 -- @
 argsAt :: (DecodeValue a) => Text -> NodeListDecoder () [a]
-argsAt name = option [] $ nodeWith name [] $ many arg
+argsAt name = withDecodeValue $ argsAtWith name
+
+-- | Same as 'argsAt', except explicitly specify the 'ValueDecoder' instead of using 'DecodeValue'
+--
+-- == __Example__
+--
+-- @
+-- let
+--   config =
+--     """
+--     email "a@example.com" "b@example.com"
+--     """
+--   decoder = KDL.document $ proc () -> do
+--     KDL.argsAtWith "email" [] KDL.text -< ()
+-- KDL.decodeWith decoder config == Right ["a@example.com", "b@example.com"]
+-- @
+argsAtWith :: (Typeable b) => Text -> [Text] -> ValueDecoder a b -> NodeListDecoder a [b]
+argsAtWith name typeAnns decoder = option [] $ nodeWith name [] $ many $ argWith typeAnns decoder
 
 -- | A helper for decoding child values in a list following the KDL convention of being named "-".
 --
@@ -490,11 +525,11 @@ dashChildrenAt name = withDecodeValue $ dashChildrenAtWith name
 --     }
 --     """
 --   decoder = KDL.document $ proc () -> do
---     KDL.dashChildrenAtWith "attendees" $ KDL.valueWith [] KDL.text -< ()
+--     KDL.dashChildrenAtWith "attendees" [] KDL.text -< ()
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob"]
 -- @
 dashChildrenAtWith :: forall a b. (Typeable b) => Text -> [Text] -> ValueDecoder a b -> NodeListDecoder a [b]
-dashChildrenAtWith name typeAnns decoder = dashNodesAtWith name [] $ argWith typeAnns decoder
+dashChildrenAtWith name typeAnns decoder = dashNodesAtWith name $ argWith typeAnns decoder
 
 -- | A helper for decoding child values in a list following the KDL convention of being named "-".
 --
@@ -519,7 +554,7 @@ dashChildrenAtWith name typeAnns decoder = dashNodesAtWith name [] $ argWith typ
 -- KDL.decodeWith decoder config == Right [Attendee "Alice", Attendee "Bob"]
 -- @
 dashNodesAt :: (DecodeNode a) => Text -> NodeListDecoder () [a]
-dashNodesAt name = withDecodeNode $ dashNodesAtWith name
+dashNodesAt name = withDecodeNode $ \_ decoder -> dashNodesAtWith name decoder
 
 -- | Same as 'dashChildrenAt', except explicitly specify the 'NodeDecoder' instead of using 'DecodeNode'
 --
@@ -535,14 +570,14 @@ dashNodesAt name = withDecodeNode $ dashNodesAtWith name
 --     }
 --     """
 --   decoder = KDL.document $ proc () -> do
---     KDL.dashNodesAtWith "attendees" $ KDL.nodeWith [] KDL.arg -< ()
+--     KDL.dashNodesAtWith "attendees" [] KDL.arg -< ()
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob"]
 -- @
-dashNodesAtWith :: forall a b. (Typeable b) => Text -> [Text] -> NodeDecoder a b -> NodeListDecoder a [b]
-dashNodesAtWith name typeAnns decoder =
+dashNodesAtWith :: forall a b. (Typeable b) => Text -> NodeDecoder a b -> NodeListDecoder a [b]
+dashNodesAtWith name decoder =
   option [] . nodeWith name [] $
     children $
-      many (nodeWith "-" typeAnns decoder)
+      many (nodeWith "-" [] decoder)
 
 {----- Decoding Ann -----}
 

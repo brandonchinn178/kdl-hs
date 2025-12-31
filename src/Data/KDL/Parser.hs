@@ -27,7 +27,7 @@ import Data.Text.IO qualified as Text
 parse :: Text -> Either Text Document
 parse input =
   case Hustle.parse Hustle.document "" input of
-    Left e -> Left . Text.pack . Hustle.errorBundlePretty $ e
+    Left e -> Left . Text.strip . Text.pack . Hustle.errorBundlePretty $ e
     Right (Hustle.Document nodes) -> Right $ fromNodes nodes
  where
   fromNodes nodes =

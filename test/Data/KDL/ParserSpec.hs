@@ -38,7 +38,7 @@ spec = do
 
     it "returns a textual error on parse failure" $ do
       let msg =
-            Text.unlines
+            Text.intercalate "\n" $
               [ "1:10:"
               , "  |"
               , "1 | foo hello= 123"
