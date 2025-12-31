@@ -6,16 +6,16 @@ module Data.KDL.Decoder.Schema (
   SchemaOf,
   Schema (..),
   SchemaItem (..),
+  TypedNodeSchema (..),
+  TypedValueSchema (..),
   schemaJoin,
   schemaAlt,
 ) where
 
 import Data.KDL.Types (
-  BaseNode,
-  BaseValue,
   Node,
   NodeList,
-  Value,
+  ValueData,
  )
 import Data.Text (Text)
 import Data.Typeable (TypeRep)
@@ -33,30 +33,28 @@ data Schema a
 data family SchemaItem a
 
 data instance SchemaItem NodeList
-  = NodeNamed Text (SchemaOf Node)
-  | RemainingNodes (SchemaOf Node)
+  = NodeNamed Text TypedNodeSchema
+  | RemainingNodes TypedNodeSchema
+
+data TypedNodeSchema = TypedNodeSchema
+  { typeHint :: TypeRep
+  , validTypeAnns :: [Text]
+  , nodeSchema :: SchemaOf Node
+  }
 
 data instance SchemaItem Node
-  = NodeSchema
-  { typeHint :: TypeRep
-  , validTypeAnns :: [Text]
-  , baseNodeSchema :: SchemaOf BaseNode
-  }
-
-data instance SchemaItem BaseNode
-  = NodeArg (SchemaOf Value)
-  | NodeProp Text (SchemaOf Value)
-  | NodeRemainingProps (SchemaOf Value)
+  = NodeArg TypedValueSchema
+  | NodeProp Text TypedValueSchema
+  | NodeRemainingProps TypedValueSchema
   | NodeChildren (SchemaOf NodeList)
 
-data instance SchemaItem Value
-  = ValueSchema
+data TypedValueSchema = TypedValueSchema
   { typeHint :: TypeRep
   , validTypeAnns :: [Text]
-  , baseValueSchema :: SchemaOf BaseValue
+  , dataSchema :: SchemaOf ValueData
   }
 
-data instance SchemaItem BaseValue
+data instance SchemaItem ValueData
   = TextSchema
   | NumberSchema
   | BoolSchema

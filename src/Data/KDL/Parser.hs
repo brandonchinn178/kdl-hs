@@ -9,12 +9,13 @@ module Data.KDL.Parser (
 import Data.KDL.Parser.Hustle qualified as Hustle
 import Data.KDL.Types (
   Ann (..),
-  BaseNode (..),
-  BaseValue (..),
   Document,
   Entry (..),
   Identifier (..),
+  Node (..),
   NodeList (..),
+  Value (..),
+  ValueData (..),
  )
 import Data.Map qualified as Map
 import Data.Text (Text)
@@ -34,16 +35,18 @@ parse input =
       , format = Nothing
       }
 
-  fromNode Hustle.Node{..} =
+  fromAnn identifier =
     Ann
-      { ann = fromIdentifier <$> nodeAnn
-      , obj =
-          BaseNode
-            { name = fromIdentifier nodeName
-            , entries = map fromArgEntry nodeArgs <> map fromPropEntry (Map.toList nodeProps)
-            , children = Just $ fromNodes nodeChildren
-            , format = Nothing
-            }
+      { identifier = fromIdentifier identifier
+      , format = Nothing
+      }
+
+  fromNode Hustle.Node{..} =
+    Node
+      { ann = fromAnn <$> nodeAnn
+      , name = fromIdentifier nodeName
+      , entries = map fromArgEntry nodeArgs <> map fromPropEntry (Map.toList nodeProps)
+      , children = Just $ fromNodes nodeChildren
       , format = Nothing
       }
 
@@ -62,16 +65,15 @@ parse input =
       }
 
   fromValue Hustle.Value{..} =
-    Ann
-      { ann = fromIdentifier <$> valueAnn
-      , obj =
+    Value
+      { ann = fromAnn <$> valueAnn
+      , data_ =
           case valueExp of
             Hustle.StringValue s -> Text s
             Hustle.IntegerValue x -> Number (fromInteger x)
             Hustle.SciValue x -> Number x
             Hustle.BooleanValue x -> Bool x
             Hustle.NullValue -> Null
-      , format = Nothing
       }
 
   fromIdentifier (Hustle.Identifier s) =

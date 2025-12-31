@@ -8,12 +8,12 @@ import Control.Arrow (returnA)
 import Control.Monad (forM_)
 import Data.KDL.Decoder.Arrow qualified as KDL
 import Data.KDL.Types (
-  Ann (..),
-  BaseNode (..),
-  BaseValue (..),
   Entry (..),
   Identifier (..),
+  Node (..),
   NodeList (..),
+  Value (..),
+  ValueData (..),
  )
 import Data.Map qualified as Map
 import Data.Text (Text)
@@ -35,12 +35,13 @@ spec = do
             decoder = KDL.document $ proc () -> do
               KDL.node "foo" -< ()
             expected =
-              BaseNode
-                { name = Identifier{value = "foo", format = Nothing}
+              Node
+                { ann = Nothing
+                , name = Identifier{value = "foo", format = Nothing}
                 , entries =
                     [ Entry
                         { name = Nothing
-                        , value = Ann{ann = Nothing, obj = Number 123, format = Nothing}
+                        , value = Value{ann = Nothing, data_ = Number 123}
                         , format = Nothing
                         }
                     ]
@@ -55,8 +56,9 @@ spec = do
               KDL.many $ KDL.node "foo" -< ()
             expected = [fooNode, fooNode]
             fooNode =
-              BaseNode
-                { name = Identifier{value = "foo", format = Nothing}
+              Node
+                { ann = Nothing
+                , name = Identifier{value = "foo", format = Nothing}
                 , entries = []
                 , children = Just NodeList{nodes = [], format = Nothing}
                 , format = Nothing
@@ -71,8 +73,9 @@ spec = do
               returnA -< (bar, foo)
             expected = (node "bar", node "foo")
             node name =
-              BaseNode
-                { name = Identifier{value = name, format = Nothing}
+              Node
+                { ann = Nothing
+                , name = Identifier{value = name, format = Nothing}
                 , entries = []
                 , children = Just NodeList{nodes = [], format = Nothing}
                 , format = Nothing
@@ -82,8 +85,8 @@ spec = do
       it "fails when not enough nodes" $ do
         let config = "foo"
             decoder = KDL.document $ proc () -> do
-              foo1 <- KDL.node @BaseNode "foo" -< ()
-              foo2 <- KDL.node @BaseNode "foo" -< ()
+              foo1 <- KDL.node @Node "foo" -< ()
+              foo2 <- KDL.node @Node "foo" -< ()
               returnA -< (foo1, foo2)
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
@@ -95,7 +98,7 @@ spec = do
       it "returns all remaining nodes" $ do
         let config = "foo 1; foo 2; bar"
             decoder = KDL.document $ proc () -> do
-              _ <- KDL.node @BaseNode "foo" -< ()
+              _ <- KDL.node @Node "foo" -< ()
               KDL.remainingNodes -< ()
             expected =
               Map.fromList
@@ -103,12 +106,13 @@ spec = do
                 , ("bar", [barNode])
                 ]
             fooNode2 =
-              BaseNode
-                { name = Identifier{value = "foo", format = Nothing}
+              Node
+                { ann = Nothing
+                , name = Identifier{value = "foo", format = Nothing}
                 , entries =
                     [ Entry
                         { name = Nothing
-                        , value = Ann{ann = Nothing, obj = Number 2, format = Nothing}
+                        , value = Value{ann = Nothing, data_ = Number 2}
                         , format = Nothing
                         }
                     ]
@@ -116,8 +120,9 @@ spec = do
                 , format = Nothing
                 }
             barNode =
-              BaseNode
-                { name = Identifier{value = "bar", format = Nothing}
+              Node
+                { ann = Nothing
+                , name = Identifier{value = "bar", format = Nothing}
                 , entries = []
                 , children = Just NodeList{nodes = [], format = Nothing}
                 , format = Nothing

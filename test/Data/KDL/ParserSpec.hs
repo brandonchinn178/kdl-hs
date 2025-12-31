@@ -5,13 +5,12 @@ module Data.KDL.ParserSpec (spec) where
 
 import Data.KDL.Parser
 import Data.KDL.Types (
-  Ann (..),
-  BaseNode (..),
-  BaseValue (..),
   Entry (..),
   Identifier (..),
-  Node,
+  Node (..),
   NodeList (..),
+  Value (..),
+  ValueData (..),
  )
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -79,33 +78,28 @@ newNodeList nodes =
 
 newNode :: Text -> [Entry] -> Maybe [Node] -> Node
 newNode name entries children =
-  Ann
+  Node
     { ann = Nothing
-    , obj =
-        BaseNode
-          { name = newIdentifier name
-          , entries = entries
-          , children = newNodeList <$> children
-          , format = Nothing
-          }
+    , name = newIdentifier name
+    , entries = entries
+    , children = newNodeList <$> children
     , format = Nothing
     }
 
-newArg :: BaseValue -> Entry
+newArg :: ValueData -> Entry
 newArg = newEntry Nothing
 
-newProp :: Text -> BaseValue -> Entry
+newProp :: Text -> ValueData -> Entry
 newProp = newEntry . Just
 
-newEntry :: Maybe Text -> BaseValue -> Entry
-newEntry mName baseValue =
+newEntry :: Maybe Text -> ValueData -> Entry
+newEntry mName data_ =
   Entry
     { name = newIdentifier <$> mName
     , value =
-        Ann
+        Value
           { ann = Nothing
-          , obj = baseValue
-          , format = Nothing
+          , data_ = data_
           }
     , format = Nothing
     }

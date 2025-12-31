@@ -20,13 +20,15 @@ module Data.KDL.Decoder.DecodeM (
 ) where
 
 import Control.Applicative (Alternative (..))
-import Data.KDL.Types (
-  BaseValue,
-  Identifier,
-  Value,
-  renderBaseValue,
+import Data.KDL.Render (
   renderIdentifier,
   renderValue,
+  renderValueData,
+ )
+import Data.KDL.Types (
+  Identifier,
+  Value,
+  ValueData,
  )
 import Data.Map qualified as Map
 import Data.Text (Text)
@@ -70,7 +72,7 @@ data BaseDecodeError
   | DecodeError_ExpectedArg {index :: Int}
   | DecodeError_ExpectedProp {name :: Text}
   | DecodeError_MismatchedAnn {givenAnn :: Identifier, validAnns :: [Text]}
-  | DecodeError_BaseValueDecodeFail {expectedType :: Text, baseValue :: BaseValue}
+  | DecodeError_ValueDataDecodeFail {expectedType :: Text, data_ :: ValueData}
   | DecodeError_UnexpectedNode {identifier :: Identifier, index :: Int}
   | DecodeError_UnexpectedArg {index :: Int, value :: Value}
   | DecodeError_UnexpectedProp {identifier :: Identifier, value :: Value}
@@ -154,7 +156,7 @@ renderDecodeError = Text.intercalate "\n" . map renderCtxErrors . groupCtxErrors
     DecodeError_ExpectedArg{..} -> "Expected arg #" <> showT index
     DecodeError_ExpectedProp{..} -> "Expected prop: " <> name
     DecodeError_MismatchedAnn{..} -> "Expected one of " <> showT validAnns <> ", got: " <> renderIdentifier givenAnn
-    DecodeError_BaseValueDecodeFail{..} -> "Expected " <> expectedType <> ", got: " <> renderBaseValue baseValue
+    DecodeError_ValueDataDecodeFail{..} -> "Expected " <> expectedType <> ", got: " <> renderValueData data_
     DecodeError_UnexpectedNode{..} -> "Unexpected node: " <> renderIdentifier identifier <> " #" <> showT index
     DecodeError_UnexpectedArg{..} -> "Unexpected arg #" <> showT index <> ": " <> renderValue value
     DecodeError_UnexpectedProp{..} -> "Unexpected prop " <> renderIdentifier identifier <> ": " <> renderValue value

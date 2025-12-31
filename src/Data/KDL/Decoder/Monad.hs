@@ -24,12 +24,13 @@ module Data.KDL.Decoder.Monad (
   DecodeError (..),
   module Data.KDL.Decoder.DecodeM,
   fail,
+  withDecoder,
   debug,
 
   -- * Decode type classes
   withoutSchema,
-  Arrow.DecodeBaseNode (..),
-  Arrow.DecodeBaseValue (..),
+  Arrow.DecodeNode (..),
+  Arrow.DecodeValue (..),
 
   -- * Document
   DocumentDecoder,
@@ -51,25 +52,25 @@ module Data.KDL.Decoder.Monad (
   dashChildrenAtWith,
   dashNodesAtWith,
 
-  -- * BaseNode
-  BaseNodeDecoder,
+  -- * Node
+  NodeDecoder,
   arg,
   prop,
   remainingProps,
   children,
 
-  -- ** Explicitly specify ValueDecoder
+  -- ** Explicitly specify ValueDataDecoder
   argWith,
   propWith,
   remainingPropsWith,
 
-  -- * BaseValue
-  Arrow.BaseValueDecoder,
-  Arrow.any,
-  Arrow.text,
-  Arrow.number,
-  Arrow.bool,
-  Arrow.null,
+  -- * ValueData
+  Arrow.ValueDataDecoder,
+  any,
+  text,
+  number,
+  bool,
+  null,
   Arrow.oneOf,
 
   -- * Combinators
@@ -79,7 +80,6 @@ module Data.KDL.Decoder.Monad (
   Arrow.some,
 
   -- * Internal API
-  runDecoder,
   Arrow.HasDecodeHistory (..),
   Arrow.DecodeState (..),
 ) where
@@ -94,15 +94,16 @@ import Data.KDL.Decoder.Schema (
   SchemaOf,
  )
 import Data.KDL.Types (
-  BaseNode,
-  BaseValue,
   Document,
+  Node,
   NodeList,
+  ValueData,
  )
 import Data.Map (Map)
+import Data.Scientific (Scientific)
 import Data.Text (Text)
 import Data.Typeable (Typeable)
-import Prelude hiding (fail)
+import Prelude hiding (any, fail, null)
 
 decodeWith :: forall a. DocumentDecoder a -> Text -> Either DecodeError a
 decodeWith = coerce (Arrow.decodeWith @a)
@@ -138,20 +139,20 @@ instance Monad (Decoder o) where
 
 -- | Drop the Monad Decoder back down to an Arrow Decoder.Content.
 --
--- See 'DecodeBaseNode' for more information.
+-- See 'DecodeNode' for more information.
 withoutSchema :: Decoder o a -> Arrow.Decoder o () a
 withoutSchema (Decoder decoder) = decoder
 
 fail :: forall a o. Text -> Decoder o a
 fail msg = coerce (Arrow.arr (\() -> msg) Arrow.>>> Arrow.fail @a)
 
-runDecoder :: (Arrow.HasDecodeHistory o) => Decoder o a -> o -> DecodeM (Arrow.DecodeState o, a)
-runDecoder decoder o = Arrow.runDecoder (coerce decoder) (o, ())
+withDecoder :: forall o a b. Decoder o a -> (a -> DecodeM b) -> Decoder o b
+withDecoder = coerce (Arrow.withDecoder @o @() @a @b)
 
 debug :: forall o. (Show o) => Decoder o ()
 debug = coerce (Arrow.debug @o @())
 
-{----- DocumentDecoder -----}
+{----- Decoding Document -----}
 
 newtype DocumentDecoder a = DocumentDecoder (NodeListDecoder a)
 
@@ -161,7 +162,7 @@ document = coerce (Arrow.document @a)
 documentSchema :: forall a. DocumentDecoder a -> SchemaOf NodeList
 documentSchema = coerce (Arrow.documentSchema @a)
 
-{----- NodeListDecoder -----}
+{----- Decoding NodeList -----}
 
 type NodeListDecoder = Decoder NodeList
 
@@ -170,9 +171,9 @@ type NodeListDecoder = Decoder NodeList
 -- == __Example__
 --
 -- @
--- instance KDL.DecodeBaseNode Person where
---   baseNodeTypeAnns _ = ["Person"]
---   baseNodeDecoder = KDL.withoutSchema $ do
+-- instance KDL.DecodeNode Person where
+--   nodeTypeAnns _ = ["Person"]
+--   nodeDecoder = KDL.withoutSchema $ do
 --     name <- KDL.arg
 --     pure Person{..}
 --
@@ -189,10 +190,10 @@ type NodeListDecoder = Decoder NodeList
 --     many $ KDL.node "person"
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob", "Charlie", "Danielle"]
 -- @
-node :: forall a. (Arrow.DecodeBaseNode a) => Text -> NodeListDecoder a
+node :: forall a. (Arrow.DecodeNode a) => Text -> NodeListDecoder a
 node = coerce (Arrow.node @a)
 
--- | Same as 'node', except explicitly specify the 'NodeDecoder' instead of using 'DecodeBaseNode'.
+-- | Same as 'node', except explicitly specify the 'NodeDecoder' instead of using 'DecodeNode'.
 --
 -- == __Example__
 --
@@ -210,7 +211,7 @@ node = coerce (Arrow.node @a)
 --     many . KDL.nodeWith "person" . KDL.nodeWith ["Person"] $ KDL.arg
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob", "Charlie", "Danielle"]
 -- @
-nodeWith :: forall a. (Typeable a) => Text -> [Text] -> BaseNodeDecoder a -> NodeListDecoder a
+nodeWith :: forall a. (Typeable a) => Text -> [Text] -> NodeDecoder a -> NodeListDecoder a
 nodeWith = coerce (Arrow.nodeWith @() @a)
 
 -- | Decode all remaining nodes with the given decoder.
@@ -218,8 +219,8 @@ nodeWith = coerce (Arrow.nodeWith @() @a)
 -- == __Example__
 --
 -- @
--- instance KDL.DecodeBaseNode MyArg where
---   baseNodeDecoder = KDL.withoutSchema $ do
+-- instance KDL.DecodeNode MyArg where
+--   nodeDecoder = KDL.withoutSchema $ do
 --     name <- KDL.arg
 --     pure MyArg{..}
 --
@@ -234,10 +235,10 @@ nodeWith = coerce (Arrow.nodeWith @() @a)
 --     KDL.remainingNodes
 -- KDL.decodeWith decoder config == Right (Map.fromList [("build", [MyArg "pkg1", MyArg "pkg2"]), ("lint", [MyArg "pkg1"])])
 -- @
-remainingNodes :: forall a. (Arrow.DecodeBaseNode a) => NodeListDecoder (Map Text [a])
+remainingNodes :: forall a. (Arrow.DecodeNode a) => NodeListDecoder (Map Text [a])
 remainingNodes = coerce (Arrow.remainingNodes @a)
 
--- | Same as 'remainingNodes', except explicitly specify the 'NodeDecoder' instead of using 'DecodeBaseNode'
+-- | Same as 'remainingNodes', except explicitly specify the 'NodeDecoder' instead of using 'DecodeNode'
 --
 -- == __Example__
 --
@@ -253,7 +254,7 @@ remainingNodes = coerce (Arrow.remainingNodes @a)
 --     KDL.remainingNodes . KDL.nodeWith [] $ KDL.arg
 -- KDL.decodeWith decoder config == Right (Map.fromList [("build", ["pkg1", "pkg2"]), ("lint", ["pkg1"])])
 -- @
-remainingNodesWith :: forall a. (Typeable a) => [Text] -> BaseNodeDecoder a -> NodeListDecoder (Map Text [a])
+remainingNodesWith :: forall a. (Typeable a) => [Text] -> NodeDecoder a -> NodeListDecoder (Map Text [a])
 remainingNodesWith = coerce (Arrow.remainingNodesWith @() @a)
 
 -- | A helper to decode the first argument of the first node with the given name.
@@ -271,7 +272,7 @@ remainingNodesWith = coerce (Arrow.remainingNodesWith @() @a)
 --     KDL.argAt "verbose"
 -- KDL.decodeWith decoder config == Right True
 -- @
-argAt :: forall a. (Arrow.DecodeBaseValue a) => Text -> NodeListDecoder a
+argAt :: forall a. (Arrow.DecodeValue a) => Text -> NodeListDecoder a
 argAt = coerce (Arrow.argAt @a)
 
 -- | A helper to decode all the arguments of the first node with the given name.
@@ -289,7 +290,7 @@ argAt = coerce (Arrow.argAt @a)
 --     KDL.argsAt "email"
 -- KDL.decodeWith decoder config == Right ["a@example.com", "b@example.com"]
 -- @
-argsAt :: forall a. (Arrow.DecodeBaseValue a) => Text -> NodeListDecoder [a]
+argsAt :: forall a. (Arrow.DecodeValue a) => Text -> NodeListDecoder [a]
 argsAt = coerce (Arrow.argsAt @a)
 
 -- | A helper for decoding child values in a list following the KDL convention of being named "-".
@@ -309,10 +310,10 @@ argsAt = coerce (Arrow.argsAt @a)
 --     KDL.dashChildrenAt "attendees"
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob"]
 -- @
-dashChildrenAt :: forall a. (Arrow.DecodeBaseValue a) => Text -> NodeListDecoder [a]
+dashChildrenAt :: forall a. (Arrow.DecodeValue a) => Text -> NodeListDecoder [a]
 dashChildrenAt = coerce (Arrow.dashChildrenAt @a)
 
--- | Same as 'dashChildrenAt', except explicitly specify the 'ValueDecoder' instead of using 'DecodeBaseValue'
+-- | Same as 'dashChildrenAt', except explicitly specify the 'ValueDecoder' instead of using 'DecodeValue'
 --
 -- == __Example__
 --
@@ -329,7 +330,7 @@ dashChildrenAt = coerce (Arrow.dashChildrenAt @a)
 --     KDL.dashChildrenAtWith "attendees" $ KDL.valueWith [] KDL.text
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob"]
 -- @
-dashChildrenAtWith :: forall a. (Typeable a) => Text -> [Text] -> BaseValueDecoder a -> NodeListDecoder [a]
+dashChildrenAtWith :: forall a. (Typeable a) => Text -> [Text] -> ValueDataDecoder a -> NodeListDecoder [a]
 dashChildrenAtWith = coerce (Arrow.dashChildrenAtWith @() @a)
 
 -- | A helper for decoding child values in a list following the KDL convention of being named "-".
@@ -337,8 +338,8 @@ dashChildrenAtWith = coerce (Arrow.dashChildrenAtWith @() @a)
 -- == __Example__
 --
 -- @
--- instance KDL.DecodeBaseNode Attendee where
---   baseNodeDecoder = KDL.withoutSchema $ do
+-- instance KDL.DecodeNode Attendee where
+--   nodeDecoder = KDL.withoutSchema $ do
 --     name <- KDL.arg
 --     pure Attendee{..}
 --
@@ -354,10 +355,10 @@ dashChildrenAtWith = coerce (Arrow.dashChildrenAtWith @() @a)
 --     KDL.dashNodesAt "attendees"
 -- KDL.decodeWith decoder config == Right [Attendee "Alice", Attendee "Bob"]
 -- @
-dashNodesAt :: forall a. (Arrow.DecodeBaseNode a) => Text -> NodeListDecoder [a]
+dashNodesAt :: forall a. (Arrow.DecodeNode a) => Text -> NodeListDecoder [a]
 dashNodesAt = coerce (Arrow.dashNodesAt @a)
 
--- | Same as 'dashChildrenAt', except explicitly specify the 'NodeDecoder' instead of using 'DecodeBaseNode'
+-- | Same as 'dashChildrenAt', except explicitly specify the 'NodeDecoder' instead of using 'DecodeNode'
 --
 -- == __Example__
 --
@@ -374,41 +375,56 @@ dashNodesAt = coerce (Arrow.dashNodesAt @a)
 --     KDL.dashNodesAtWith "attendees" $ KDL.nodeWith [] KDL.arg
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob"]
 -- @
-dashNodesAtWith :: forall a. (Typeable a) => Text -> [Text] -> BaseNodeDecoder a -> NodeListDecoder [a]
+dashNodesAtWith :: forall a. (Typeable a) => Text -> [Text] -> NodeDecoder a -> NodeListDecoder [a]
 dashNodesAtWith = coerce (Arrow.dashNodesAtWith @() @a)
 
-{----- BaseNodeDecoder -----}
+{----- Decoding Node -----}
 
-type BaseNodeDecoder a = Decoder BaseNode a
+type NodeDecoder a = Decoder Node a
 
 -- FIXME: document
-arg :: forall a. (Arrow.DecodeBaseValue a) => BaseNodeDecoder a
+arg :: forall a. (Arrow.DecodeValue a) => NodeDecoder a
 arg = coerce (Arrow.arg @a)
 
 -- FIXME: document
-argWith :: forall a. (Typeable a) => [Text] -> BaseValueDecoder a -> BaseNodeDecoder a
+argWith :: forall a. (Typeable a) => [Text] -> ValueDataDecoder a -> NodeDecoder a
 argWith = coerce (Arrow.argWith @() @a)
 
 -- | FIXME: document
-prop :: forall a. (Arrow.DecodeBaseValue a) => Text -> BaseNodeDecoder a
+prop :: forall a. (Arrow.DecodeValue a) => Text -> NodeDecoder a
 prop = coerce (Arrow.prop @a)
 
 -- | FIXME: document
-propWith :: forall a. (Typeable a) => Text -> [Text] -> BaseValueDecoder a -> BaseNodeDecoder a
+propWith :: forall a. (Typeable a) => Text -> [Text] -> ValueDataDecoder a -> NodeDecoder a
 propWith = coerce (Arrow.propWith @() @a)
 
 -- | FIXME: document
-remainingProps :: forall a. (Arrow.DecodeBaseValue a) => BaseNodeDecoder (Map Text a)
+remainingProps :: forall a. (Arrow.DecodeValue a) => NodeDecoder (Map Text a)
 remainingProps = coerce (Arrow.remainingProps @a)
 
 -- | FIXME: document
-remainingPropsWith :: forall a. (Typeable a) => [Text] -> BaseValueDecoder a -> BaseNodeDecoder (Map Text a)
+remainingPropsWith :: forall a. (Typeable a) => [Text] -> ValueDataDecoder a -> NodeDecoder (Map Text a)
 remainingPropsWith = coerce (Arrow.remainingPropsWith @() @a)
 
 -- | FIXME: document
-children :: forall a. NodeListDecoder a -> BaseNodeDecoder a
+children :: forall a. NodeListDecoder a -> NodeDecoder a
 children = coerce (Arrow.children @() @a)
 
-{----- BaseValueDecoder -----}
+{----- Decoding ValueData -----}
 
-type BaseValueDecoder a = Decoder BaseValue a
+type ValueDataDecoder a = Decoder ValueData a
+
+any :: ValueDataDecoder ValueData
+any = coerce (Arrow.any @())
+
+text :: ValueDataDecoder Text
+text = coerce (Arrow.text @())
+
+number :: ValueDataDecoder Scientific
+number = coerce (Arrow.number @())
+
+bool :: ValueDataDecoder Bool
+bool = coerce (Arrow.bool @())
+
+null :: ValueDataDecoder ()
+null = coerce (Arrow.null @())

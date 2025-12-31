@@ -25,9 +25,9 @@ module Data.KDL.Types (
   getDashNodesAt,
 
   -- * Node
-  Node,
-  BaseNode (..),
+  Node (..),
   NodeFormat (..),
+  nodeAnn,
   nodeName,
   nodeEntries,
   nodeChildren,
@@ -47,15 +47,13 @@ module Data.KDL.Types (
   entryFormat,
 
   -- * Value
-  Value,
-  BaseValue (..),
-  renderValue,
-  renderBaseValue,
+  Value (..),
+  ValueData (..),
 
   -- * Ann
   Ann (..),
-  annAnn,
-  annObj,
+  AnnFormat (..),
+  annIdentifier,
   annFormat,
 
   -- * Identifier
@@ -64,17 +62,14 @@ module Data.KDL.Types (
   fromIdentifier,
   identifierFormat,
   toIdentifier,
-  renderIdentifier,
 ) where
 
 import Control.Monad ((<=<))
-import Data.Char (isDigit)
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Scientific (Scientific)
 import Data.Text (Text)
-import Data.Text qualified as Text
 
 {----- Document -----}
 
@@ -107,7 +102,7 @@ nodeListFormat = (.format)
 
 -- | A helper to get all nodes with the given name
 filterNodes :: Text -> NodeList -> [Node]
-filterNodes name = filter ((== name) . (.obj.name.value)) . (.nodes)
+filterNodes name = filter ((== name) . (.name.value)) . (.nodes)
 
 -- | A helper to get the first node with the given name
 lookupNode :: Text -> NodeList -> Maybe Node
@@ -189,9 +184,8 @@ getDashNodesAt name = maybe [] (filterNodes "-") . (nodeChildren <=< lookupNode 
 
 {----- Ann -----}
 
-data Ann a = Ann
-  { ann :: Maybe Identifier
-  , obj :: a
+data Ann = Ann
+  { identifier :: Identifier
   , format :: Maybe AnnFormat
   }
   deriving (Show, Eq)
@@ -208,25 +202,17 @@ data AnnFormat = AnnFormat
   }
   deriving (Show, Eq)
 
-annAnn :: Ann a -> Maybe Identifier
-annAnn = (.ann)
+annIdentifier :: Ann -> Identifier
+annIdentifier = (.identifier)
 
-annObj :: Ann a -> a
-annObj = (.obj)
-
-annFormat :: Ann a -> Maybe AnnFormat
+annFormat :: Ann -> Maybe AnnFormat
 annFormat = (.format)
-
-renderAnnWith :: (a -> Text) -> Ann a -> Text
-renderAnnWith renderObj Ann{..} = maybe "" (parens . renderIdentifier) ann <> renderObj obj
- where
-  parens s = "(" <> s <> ")"
 
 {----- Node -----}
 
-type Node = Ann BaseNode
-data BaseNode = BaseNode
-  { name :: Identifier
+data Node = Node
+  { ann :: Maybe Ann
+  , name :: Identifier
   , entries :: [Entry]
   , children :: Maybe NodeList
   , format :: Maybe NodeFormat
@@ -247,23 +233,26 @@ data NodeFormat = NodeFormat
   }
   deriving (Show, Eq)
 
+nodeAnn :: Node -> Maybe Ann
+nodeAnn = (.ann)
+
 nodeName :: Node -> Identifier
-nodeName = (.obj.name)
+nodeName = (.name)
 
 nodeEntries :: Node -> [Entry]
-nodeEntries = (.obj.entries)
+nodeEntries = (.entries)
 
 nodeChildren :: Node -> Maybe NodeList
-nodeChildren = (.obj.children)
+nodeChildren = (.children)
 
 nodeFormat :: Node -> Maybe NodeFormat
-nodeFormat = (.obj.format)
+nodeFormat = (.format)
 
 -- | Get all the positional arguments of the node.
 getArgs :: Node -> [Value]
 getArgs node =
   [ value
-  | Entry{name = Nothing, value} <- node.obj.entries
+  | Entry{name = Nothing, value} <- node.entries
   ]
 
 -- | Get the first argument of the node.
@@ -275,7 +264,7 @@ getProps :: Node -> Map Text Value
 getProps node =
   Map.fromList
     [ (name.value, value)
-    | Entry{name = Just name, value} <- node.obj.entries
+    | Entry{name = Just name, value} <- node.entries
     ]
 
 -- | Get the property with the given name in the node.
@@ -317,94 +306,18 @@ entryFormat = (.format)
 
 {----- Value -----}
 
-type Value = Ann BaseValue
-data BaseValue
+data Value = Value
+  { ann :: Maybe Ann
+  , data_ :: ValueData
+  }
+  deriving (Show, Eq)
+
+data ValueData
   = Text Text
   | Number Scientific
   | Bool Bool
   | Null
   deriving (Show, Eq)
-
-renderValue :: Value -> Text
-renderValue = renderAnnWith renderBaseValue
-
-renderBaseValue :: BaseValue -> Text
-renderBaseValue = \case
-  Text s -> renderString s
-  Number x -> (Text.pack . show) x
-  Bool b -> if b then "#true" else "#false"
-  Null -> "#null"
- where
-  renderString s = if isPlainIdent s then s else "\"" <> Text.concatMap escapeChar s <> "\""
-  isPlainIdent s =
-    and . map not $
-      [ Text.any isDisallowedChar s
-      , case fmap Text.uncons <$> Text.uncons s of
-          Just (c, _) | isDigit c -> True
-          Just (c0, Just (c1, _))
-            | c0 `elem` ['.', '-', '+']
-            , isDigit c1 ->
-                True
-          _ -> False
-      , s `elem` ["inf", "-inf", "nan", "true", "false", "null"]
-      ]
-  isDisallowedChar c =
-    or
-      [ c `elem` disallowedIdentChars
-      , any (c `Text.elem`) newlines
-      , c `elem` unicodeSpaces
-      , isDisallowedUnicode c
-      , c == '='
-      ]
-  disallowedIdentChars = ['\\', '/', '(', ')', '{', '}', '[', ']', ';', '"', '#']
-  newlines =
-    [ "\x000D\x000A"
-    , "\x000D"
-    , "\x000A"
-    , "\x0085"
-    , "\x000B"
-    , "\x000C"
-    , "\x2028"
-    , "\x2029"
-    ]
-  unicodeSpaces =
-    [ '\x0009'
-    , '\x0020'
-    , '\x00A0'
-    , '\x1680'
-    , '\x2000'
-    , '\x2001'
-    , '\x2002'
-    , '\x2003'
-    , '\x2004'
-    , '\x2005'
-    , '\x2006'
-    , '\x2007'
-    , '\x2008'
-    , '\x2009'
-    , '\x200A'
-    , '\x202F'
-    , '\x205F'
-    , '\x3000'
-    ]
-  isDisallowedUnicode c =
-    or
-      [ '\x0000' < c && c <= '\x0008'
-      , '\x000E' < c && c <= '\x001F'
-      , '\x200E' < c && c <= '\x200F'
-      , '\x202A' < c && c <= '\x202E'
-      , '\x2066' < c && c <= '\x2069'
-      , c == '\xFEFF'
-      ]
-  escapeChar = \case
-    '\\' -> "\\\\"
-    '"' -> "\\\""
-    '\n' -> "\\n"
-    '\r' -> "\\r"
-    '\t' -> "\\t"
-    '\x08' -> "\\b"
-    '\x0C' -> "\\f"
-    c -> Text.singleton c
 
 {----- Identifier -----}
 
@@ -427,6 +340,3 @@ identifierFormat = (.format)
 
 toIdentifier :: Text -> Identifier
 toIdentifier value = Identifier{value = value, format = Nothing}
-
-renderIdentifier :: Identifier -> Text
-renderIdentifier ident = maybe ident.value (.repr) ident.format
