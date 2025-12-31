@@ -60,13 +60,13 @@ module Data.KDL.Decoder.Arrow (
   remainingProps,
   children,
 
-  -- ** Explicitly specify ValueDataDecoder
+  -- ** Explicitly specify ValueDecoder
   argWith,
   propWith,
   remainingPropsWith,
 
-  -- * ValueData
-  ValueDataDecoder,
+  -- * Value
+  ValueDecoder,
   DecodeValue (..),
   any,
   text,
@@ -334,7 +334,7 @@ node name = withDecodeNode $ nodeWith name
 -- @
 nodeWith :: forall a b. (Typeable b) => Text -> [Text] -> NodeDecoder a b -> NodeListDecoder a b
 nodeWith name =
-  withNodeDecoder $ \schema decodeNode ->
+  withTypedNodeDecoder $ \schema decodeNode ->
     Decoder (SchemaOne $ NodeNamed name schema) $ \a -> do
       decodeFirstNodeWhere ((== name) . (.name.value)) (decodeNode a) >>= \case
         Just (_, b) -> pure b
@@ -406,7 +406,7 @@ remainingNodes = withDecodeNode remainingNodesWith
 remainingNodesWith :: forall a b. (Typeable b) => [Text] -> NodeDecoder a b -> NodeListDecoder a (Map Text [b])
 -- TODO: Detect duplicate `remainingNodes` calls and fail to build a decoder
 remainingNodesWith =
-  withNodeDecoder $ \schema decodeNode ->
+  withTypedNodeDecoder $ \schema decodeNode ->
     Decoder (SchemaOne $ RemainingNodes schema) $ \a -> do
       Map.fromListWith (<>) <$> go (decodeNode a)
  where
@@ -476,7 +476,7 @@ argsAt name = option [] $ nodeWith name [] $ many arg
 dashChildrenAt :: (DecodeValue a) => Text -> NodeListDecoder () [a]
 dashChildrenAt name = withDecodeValue $ dashChildrenAtWith name
 
--- | Same as 'dashChildrenAt', except explicitly specify the 'ValueDataDecoder' instead of using 'DecodeValue'
+-- | Same as 'dashChildrenAt', except explicitly specify the 'ValueDecoder' instead of using 'DecodeValue'
 --
 -- == __Example__
 --
@@ -493,7 +493,7 @@ dashChildrenAt name = withDecodeValue $ dashChildrenAtWith name
 --     KDL.dashChildrenAtWith "attendees" $ KDL.valueWith [] KDL.text -< ()
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob"]
 -- @
-dashChildrenAtWith :: forall a b. (Typeable b) => Text -> [Text] -> ValueDataDecoder a b -> NodeListDecoder a [b]
+dashChildrenAtWith :: forall a b. (Typeable b) => Text -> [Text] -> ValueDecoder a b -> NodeListDecoder a [b]
 dashChildrenAtWith name typeAnns decoder = dashNodesAtWith name [] $ argWith typeAnns decoder
 
 -- | A helper for decoding child values in a list following the KDL convention of being named "-".
@@ -562,12 +562,12 @@ withDecodeNode :: forall a r. (DecodeNode a) => ([Text] -> NodeDecoder () a -> r
 withDecodeNode k = k (validNodeTypeAnns (Proxy @a)) nodeDecoder
 
 -- | FIXME: document
-withNodeDecoder ::
+withTypedNodeDecoder ::
   forall a b r.
   (Typeable b) =>
   (TypedNodeSchema -> (a -> Node -> DecodeM b) -> r) ->
   ([Text] -> NodeDecoder a b -> r)
-withNodeDecoder k typeAnns decoder = k schema decodeNode
+withTypedNodeDecoder k typeAnns decoder = k schema decodeNode
  where
   schema =
     TypedNodeSchema
@@ -649,9 +649,9 @@ arg :: (DecodeValue a) => NodeDecoder () a
 arg = withDecodeValue argWith
 
 -- FIXME: document
-argWith :: forall a b. (Typeable b) => [Text] -> ValueDataDecoder a b -> NodeDecoder a b
+argWith :: forall a b. (Typeable b) => [Text] -> ValueDecoder a b -> NodeDecoder a b
 argWith =
-  withValueDecoder $ \schema decodeValue ->
+  withTypedValueDecoder $ \schema decodeValue ->
     Decoder (SchemaOne $ NodeArg schema) $ \a -> do
       index <- StateT.gets getArgIndex
 
@@ -672,9 +672,9 @@ prop :: (DecodeValue a) => Text -> NodeDecoder () a
 prop name = withDecodeValue $ propWith name
 
 -- | FIXME: document
-propWith :: forall a b. (Typeable b) => Text -> [Text] -> ValueDataDecoder a b -> NodeDecoder a b
+propWith :: forall a b. (Typeable b) => Text -> [Text] -> ValueDecoder a b -> NodeDecoder a b
 propWith name =
-  withValueDecoder $ \schema decodeValue ->
+  withTypedValueDecoder $ \schema decodeValue ->
     Decoder (SchemaOne $ NodeProp name schema) $ \a -> do
       decodeOnePropWhere (== name) (decodeValue a)
         >>= maybe (Trans.lift $ decodeThrow DecodeError_ExpectedProp{name = name}) (pure . snd)
@@ -710,9 +710,9 @@ remainingProps :: (DecodeValue a) => NodeDecoder () (Map Text a)
 remainingProps = withDecodeValue remainingPropsWith
 
 -- | FIXME: document
-remainingPropsWith :: forall a b. (Typeable b) => [Text] -> ValueDataDecoder a b -> NodeDecoder a (Map Text b)
+remainingPropsWith :: forall a b. (Typeable b) => [Text] -> ValueDecoder a b -> NodeDecoder a (Map Text b)
 remainingPropsWith =
-  withValueDecoder $ \schema decodeValue ->
+  withTypedValueDecoder $ \schema decodeValue ->
     Decoder (SchemaOne $ NodeRemainingProps schema) $ \a -> do
       Map.fromList <$> go (decodeValue a)
  where
@@ -747,15 +747,15 @@ children decoder =
 
 {----- Decoding ValueData -----}
 
-withDecodeValue :: forall a r. (DecodeValue a) => ([Text] -> ValueDataDecoder () a -> r) -> r
-withDecodeValue k = k (validValueTypeAnns (Proxy @a)) valueDataDecoder
+withDecodeValue :: forall a r. (DecodeValue a) => ([Text] -> ValueDecoder () a -> r) -> r
+withDecodeValue k = k (validValueTypeAnns (Proxy @a)) valueDecoder
 
-withValueDecoder ::
+withTypedValueDecoder ::
   forall a b r.
   (Typeable b) =>
   (TypedValueSchema -> (a -> Value -> DecodeM b) -> r) ->
-  ([Text] -> ValueDataDecoder a b -> r)
-withValueDecoder k typeAnns decoder = k schema decodeValue
+  ([Text] -> ValueDecoder a b -> r)
+withTypedValueDecoder k typeAnns decoder = k schema decodeValue
  where
   schema =
     TypedValueSchema
@@ -765,30 +765,32 @@ withValueDecoder k typeAnns decoder = k schema decodeValue
       }
   decodeValue a value = do
     validateAnn typeAnns value.ann
-    runDecodeStateM value.data_ emptyDecodeHistory $ do
+    runDecodeStateM value emptyDecodeHistory $ do
       -- TODO: add typeHint to Context
       decoder.run a
 
-type ValueDataDecoder = Decoder ValueData
+type ValueDecoder = Decoder Value
 
-instance HasDecodeHistory ValueData where
-  data DecodeHistory ValueData = DecodeHistory_ValueData
-  emptyDecodeHistory = DecodeHistory_ValueData
+instance HasDecodeHistory Value where
+  data DecodeHistory Value = DecodeHistory_Value
+  emptyDecodeHistory = DecodeHistory_Value
 
 -- | FIXME: document
 class (Typeable a) => DecodeValue a where
   validValueTypeAnns :: Proxy a -> [Text]
   validValueTypeAnns _ = []
-  valueDataDecoder :: ValueDataDecoder () a
+  valueDecoder :: ValueDecoder () a
 
+instance DecodeValue Value where
+  valueDecoder = any
 instance DecodeValue ValueData where
-  valueDataDecoder = any
+  valueDecoder = (.data_) <$> any
 instance DecodeValue Text where
   validValueTypeAnns _ = ["string", "text"]
-  valueDataDecoder = text
+  valueDecoder = text
 instance DecodeValue Integer where -- FIXME: Add Word8, Int8, ...
   validValueTypeAnns _ = ["i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", "isize", "usize"]
-  valueDataDecoder = toInteger <$> valueDataDecoder @Int64
+  valueDecoder = toInteger <$> valueDecoder @Int64
 instance DecodeValue Int where
   validValueTypeAnns _ =
     concat
@@ -798,10 +800,10 @@ instance DecodeValue Int where
       ]
    where
     bits = finiteBitSize (0 :: Int)
-  valueDataDecoder = fromIntegral <$> valueDataDecoder @Int64
+  valueDecoder = fromIntegral <$> valueDecoder @Int64
 instance DecodeValue Int64 where
   validValueTypeAnns _ = ["i64"]
-  valueDataDecoder = withDecoder number $ \x -> do
+  valueDecoder = withDecoder number $ \x -> do
     unless (Scientific.isInteger x) $
       failM $
         "Expected integer, got: " <> (Text.pack . show) x
@@ -809,39 +811,39 @@ instance DecodeValue Int64 where
       Scientific.toBoundedInteger @Int64 x
 instance DecodeValue Scientific where -- FIXME: Add Double, Float, Rational
   validValueTypeAnns _ = ["f32", "f64", "decimal64", "decimal128"]
-  valueDataDecoder = number
+  valueDecoder = number
 instance DecodeValue Bool where
   validValueTypeAnns _ = ["bool", "boolean"]
-  valueDataDecoder = bool
+  valueDecoder = bool
 instance (DecodeValue a) => DecodeValue (Maybe a) where
   validValueTypeAnns _ = validValueTypeAnns (Proxy @a)
-  valueDataDecoder = oneOf [Nothing <$ null, Just <$> valueDataDecoder]
+  valueDecoder = oneOf [Nothing <$ null, Just <$> valueDecoder]
 
-valueDataDecoderPrim :: SchemaOf ValueData -> (ValueData -> DecodeM b) -> ValueDataDecoder a b
+valueDataDecoderPrim :: SchemaOf Value -> (Value -> DecodeM b) -> ValueDecoder a b
 valueDataDecoderPrim schema f = Decoder schema $ \_ -> Trans.lift . f =<< StateT.gets (.object)
 
-any :: ValueDataDecoder a ValueData
+any :: ValueDecoder a Value
 any = valueDataDecoderPrim (SchemaOr $ map SchemaOne [minBound .. maxBound]) pure
 
-text :: ValueDataDecoder a Text
+text :: ValueDecoder a Text
 text = valueDataDecoderPrim (SchemaOne TextSchema) $ \case
-  Text s -> pure s
-  v -> decodeThrow DecodeError_ValueDataDecodeFail{expectedType = "text", data_ = v}
+  Value{data_ = Text s} -> pure s
+  v -> decodeThrow DecodeError_ValueDecodeFail{expectedType = "text", value = v}
 
-number :: ValueDataDecoder a Scientific
+number :: ValueDecoder a Scientific
 number = valueDataDecoderPrim (SchemaOne NumberSchema) $ \case
-  Number x -> pure x
-  v -> decodeThrow DecodeError_ValueDataDecodeFail{expectedType = "number", data_ = v}
+  Value{data_ = Number x} -> pure x
+  v -> decodeThrow DecodeError_ValueDecodeFail{expectedType = "number", value = v}
 
-bool :: ValueDataDecoder a Bool
+bool :: ValueDecoder a Bool
 bool = valueDataDecoderPrim (SchemaOne BoolSchema) $ \case
-  Bool x -> pure x
-  v -> decodeThrow DecodeError_ValueDataDecodeFail{expectedType = "bool", data_ = v}
+  Value{data_ = Bool x} -> pure x
+  v -> decodeThrow DecodeError_ValueDecodeFail{expectedType = "bool", value = v}
 
-null :: ValueDataDecoder a ()
+null :: ValueDecoder a ()
 null = valueDataDecoderPrim (SchemaOne NullSchema) $ \case
-  Null -> pure ()
-  v -> decodeThrow DecodeError_ValueDataDecodeFail{expectedType = "null", data_ = v}
+  Value{data_ = Null} -> pure ()
+  v -> decodeThrow DecodeError_ValueDecodeFail{expectedType = "null", value = v}
 
 {----- Utilities -----}
 

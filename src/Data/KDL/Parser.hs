@@ -16,6 +16,7 @@ import Data.KDL.Types (
   NodeList (..),
   Value (..),
   ValueData (..),
+  ValueFormat (..),
  )
 import Data.Map qualified as Map
 import Data.Text (Text)
@@ -74,6 +75,10 @@ parse input =
             Hustle.SciValue x -> Number x
             Hustle.BooleanValue x -> Bool x
             Hustle.NullValue -> Null
+      , format =
+          case valueExp of
+            Hustle.IntegerValue x -> Just ValueFormat{repr = Text.pack $ show x}
+            _ -> Nothing
       }
 
   fromIdentifier (Hustle.Identifier s) =

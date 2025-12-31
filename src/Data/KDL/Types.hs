@@ -48,6 +48,10 @@ module Data.KDL.Types (
 
   -- * Value
   Value (..),
+  ValueFormat (..),
+  valueAnn,
+  valueData,
+  valueFormat,
   ValueData (..),
 
   -- * Ann
@@ -282,15 +286,13 @@ data Entry = Entry
   deriving (Show, Eq)
 
 data EntryFormat = EntryFormat
-  { leading :: String
+  { leading :: Text
   -- ^ Whitespace and comments preceding the entry itself.
-  , after_key :: String
+  , after_key :: Text
   -- ^ Whitespace and comments between an entry's key name and its equals sign.
-  , after_eq :: String
+  , after_eq :: Text
   -- ^ Whitespace and comments between an entry's equals sign and its value.
-  , value_repr :: String
-  -- ^ The actual text representation of the entry's value.
-  , trailing :: String
+  , trailing :: Text
   -- ^ Whitespace and comments following the entry itself.
   }
   deriving (Show, Eq)
@@ -309,8 +311,24 @@ entryFormat = (.format)
 data Value = Value
   { ann :: Maybe Ann
   , data_ :: ValueData
+  , format :: Maybe ValueFormat
   }
   deriving (Show, Eq)
+
+data ValueFormat = ValueFormat
+  { repr :: Text
+  -- ^ The actual text representation of the value.
+  }
+  deriving (Show, Eq)
+
+valueAnn :: Value -> Maybe Ann
+valueAnn = (.ann)
+
+valueData :: Value -> ValueData
+valueData = (.data_)
+
+valueFormat :: Value -> Maybe ValueFormat
+valueFormat = (.format)
 
 data ValueData
   = Text Text

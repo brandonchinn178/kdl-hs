@@ -31,7 +31,7 @@ spec = do
   describe "NodeListDecoder" $ do
     describe "node" $ do
       it "decodes a node" $ do
-        let config = "foo 123"
+        let config = "foo 1.0"
             decoder = KDL.document $ proc () -> do
               KDL.node "foo" -< ()
             expected =
@@ -41,7 +41,7 @@ spec = do
                 , entries =
                     [ Entry
                         { name = Nothing
-                        , value = Value{ann = Nothing, data_ = Number 123}
+                        , value = Value{ann = Nothing, data_ = Number 1.0, format = Nothing}
                         , format = Nothing
                         }
                     ]
@@ -96,7 +96,7 @@ spec = do
 
     describe "remainingNodes" $ do
       it "returns all remaining nodes" $ do
-        let config = "foo 1; foo 2; bar"
+        let config = "foo 1.0; foo 2.0; bar"
             decoder = KDL.document $ proc () -> do
               _ <- KDL.node @Node "foo" -< ()
               KDL.remainingNodes -< ()
@@ -112,7 +112,7 @@ spec = do
                 , entries =
                     [ Entry
                         { name = Nothing
-                        , value = Value{ann = Nothing, data_ = Number 2}
+                        , value = Value{ann = Nothing, data_ = Number 2.0, format = Nothing}
                         , format = Nothing
                         }
                     ]
@@ -204,7 +204,7 @@ spec = do
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > - #0"
-            , "  Unexpected arg #1: 2.0"
+            , "  Unexpected arg #1: 2"
             ]
 
       it "fails if node has non-dash children" $ do

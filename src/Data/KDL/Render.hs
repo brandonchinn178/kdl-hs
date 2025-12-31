@@ -22,6 +22,7 @@ import Data.KDL.Types (
   IdentifierFormat (..),
   Value (..),
   ValueData (..),
+  ValueFormat (..),
  )
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -46,7 +47,7 @@ renderValue :: Value -> Text
 renderValue Value{..} =
   Text.concat
     [ maybe "" renderAnn ann
-    , renderValueData data_
+    , maybe (renderValueData data_) (.repr) format
     ]
 
 renderValueData :: ValueData -> Text

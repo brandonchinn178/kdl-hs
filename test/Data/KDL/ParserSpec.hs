@@ -26,7 +26,7 @@ spec = do
             newNodeList
               [ newNode
                   "foo"
-                  [ newArg $ Number 123
+                  [ newArg $ Number 1.0
                   , newProp "hello" $ Text "world"
                   ]
                   ( Just
@@ -34,7 +34,7 @@ spec = do
                       ]
                   )
               ]
-      parse "foo hello=world 123 { bar; }" `shouldBe` Right expected
+      parse "foo hello=world 1.0 { bar; }" `shouldBe` Right expected
 
     it "returns a textual error on parse failure" $ do
       let msg =
@@ -52,12 +52,12 @@ spec = do
     it "parses a KDL document from a filepath" $ do
       withSystemTempDirectory "" $ \tmpdir -> do
         let file = tmpdir ++ "/test.kdl"
-        writeFile file "foo hello=world 123 { bar; }"
+        writeFile file "foo hello=world 1.0 { bar; }"
         let expected =
               newNodeList
                 [ newNode
                     "foo"
-                    [ newArg $ Number 123
+                    [ newArg $ Number 1.0
                     , newProp "hello" $ Text "world"
                     ]
                     ( Just
@@ -100,6 +100,7 @@ newEntry mName data_ =
         Value
           { ann = Nothing
           , data_ = data_
+          , format = Nothing
           }
     , format = Nothing
     }

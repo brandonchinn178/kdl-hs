@@ -60,7 +60,7 @@ decimal_ = number 10 isDigit
 scientific_ :: Parser Scientific
 scientific_ = do
   c'      <- decimal_
-  SP c e' <- option (SP c' 0) (try $ dotDecimal_ c')
+  SP c e' <- dotDecimal_ c'
   e       <- option e' (try $ exponent_ e')
   return (Sci.scientific c e)
 

@@ -59,18 +59,18 @@ module Data.KDL.Decoder.Monad (
   remainingProps,
   children,
 
-  -- ** Explicitly specify ValueDataDecoder
+  -- ** Explicitly specify ValueDecoder
   argWith,
   propWith,
   remainingPropsWith,
 
   -- * ValueData
-  Arrow.ValueDataDecoder,
-  any,
-  text,
-  number,
-  bool,
-  null,
+  ValueDecoder,
+  Arrow.any,
+  Arrow.text,
+  Arrow.number,
+  Arrow.bool,
+  Arrow.null,
   Arrow.oneOf,
 
   -- * Combinators
@@ -97,10 +97,8 @@ import Data.KDL.Types (
   Document,
   Node,
   NodeList,
-  ValueData,
  )
 import Data.Map (Map)
-import Data.Scientific (Scientific)
 import Data.Text (Text)
 import Data.Typeable (Typeable)
 import Prelude hiding (any, fail, null)
@@ -330,7 +328,7 @@ dashChildrenAt = coerce (Arrow.dashChildrenAt @a)
 --     KDL.dashChildrenAtWith "attendees" $ KDL.valueWith [] KDL.text
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob"]
 -- @
-dashChildrenAtWith :: forall a. (Typeable a) => Text -> [Text] -> ValueDataDecoder a -> NodeListDecoder [a]
+dashChildrenAtWith :: forall a. (Typeable a) => Text -> [Text] -> ValueDecoder a -> NodeListDecoder [a]
 dashChildrenAtWith = coerce (Arrow.dashChildrenAtWith @() @a)
 
 -- | A helper for decoding child values in a list following the KDL convention of being named "-".
@@ -387,7 +385,7 @@ arg :: forall a. (Arrow.DecodeValue a) => NodeDecoder a
 arg = coerce (Arrow.arg @a)
 
 -- FIXME: document
-argWith :: forall a. (Typeable a) => [Text] -> ValueDataDecoder a -> NodeDecoder a
+argWith :: forall a. (Typeable a) => [Text] -> ValueDecoder a -> NodeDecoder a
 argWith = coerce (Arrow.argWith @() @a)
 
 -- | FIXME: document
@@ -395,7 +393,7 @@ prop :: forall a. (Arrow.DecodeValue a) => Text -> NodeDecoder a
 prop = coerce (Arrow.prop @a)
 
 -- | FIXME: document
-propWith :: forall a. (Typeable a) => Text -> [Text] -> ValueDataDecoder a -> NodeDecoder a
+propWith :: forall a. (Typeable a) => Text -> [Text] -> ValueDecoder a -> NodeDecoder a
 propWith = coerce (Arrow.propWith @() @a)
 
 -- | FIXME: document
@@ -403,28 +401,13 @@ remainingProps :: forall a. (Arrow.DecodeValue a) => NodeDecoder (Map Text a)
 remainingProps = coerce (Arrow.remainingProps @a)
 
 -- | FIXME: document
-remainingPropsWith :: forall a. (Typeable a) => [Text] -> ValueDataDecoder a -> NodeDecoder (Map Text a)
+remainingPropsWith :: forall a. (Typeable a) => [Text] -> ValueDecoder a -> NodeDecoder (Map Text a)
 remainingPropsWith = coerce (Arrow.remainingPropsWith @() @a)
 
 -- | FIXME: document
 children :: forall a. NodeListDecoder a -> NodeDecoder a
 children = coerce (Arrow.children @() @a)
 
-{----- Decoding ValueData -----}
+{----- Decoding Value -----}
 
-type ValueDataDecoder a = Decoder ValueData a
-
-any :: ValueDataDecoder ValueData
-any = coerce (Arrow.any @())
-
-text :: ValueDataDecoder Text
-text = coerce (Arrow.text @())
-
-number :: ValueDataDecoder Scientific
-number = coerce (Arrow.number @())
-
-bool :: ValueDataDecoder Bool
-bool = coerce (Arrow.bool @())
-
-null :: ValueDataDecoder ()
-null = coerce (Arrow.null @())
+type ValueDecoder = Arrow.ValueDecoder ()

@@ -15,7 +15,7 @@ module Data.KDL.Decoder.Schema (
 import Data.KDL.Types (
   Node,
   NodeList,
-  ValueData,
+  Value,
  )
 import Data.Text (Text)
 import Data.Typeable (TypeRep)
@@ -51,10 +51,10 @@ data instance SchemaItem Node
 data TypedValueSchema = TypedValueSchema
   { typeHint :: TypeRep
   , validTypeAnns :: [Text]
-  , dataSchema :: SchemaOf ValueData
+  , dataSchema :: SchemaOf Value
   }
 
-data instance SchemaItem ValueData
+data instance SchemaItem Value
   = TextSchema
   | NumberSchema
   | BoolSchema

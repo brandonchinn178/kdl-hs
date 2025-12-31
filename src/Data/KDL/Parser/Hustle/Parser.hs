@@ -222,6 +222,7 @@ value = label "Value" $ do
     , IntegerValue <$> try octal <?> "Octal"
     , IntegerValue <$> try hexadecimal <?> "Hexadecimal"
     , SciValue <$> try scientific <?> "Decimal"
+    , IntegerValue <$> try integer <?> "Integer"
     , BooleanValue <$> try bool <?> "Boolean"
     , NullValue <$ try nullvalue <?> "Null"
     , StringValue <$> anystring <?> "String"
