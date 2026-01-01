@@ -97,7 +97,7 @@ import Control.Applicative (
 import Control.Arrow (Arrow (..), ArrowChoice (..), (>>>))
 import Control.Category (Category)
 import Control.Category qualified
-import Control.Monad (unless, (>=>))
+import Control.Monad (unless, when, (>=>))
 import Control.Monad.Trans.Class qualified as Trans
 import Control.Monad.Trans.State.Strict (StateT)
 import Control.Monad.Trans.State.Strict qualified as StateT
@@ -137,7 +137,10 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Typeable (Typeable, typeRep)
+import Data.Word (Word16, Word32, Word64, Word8)
 import Debug.Trace (traceM)
+import GHC.Int (Int16, Int32, Int8)
+import Numeric.Natural (Natural)
 import Prelude hiding (any, fail, null)
 import Prelude qualified
 
@@ -821,11 +824,34 @@ instance DecodeValue Value where
 instance DecodeValue ValueData where
   valueDecoder = (.data_) <$> any
 instance DecodeValue Text where
-  validValueTypeAnns _ = ["string", "text"]
+  validValueTypeAnns _ = ["text"]
   valueDecoder = text
-instance DecodeValue Integer where -- FIXME: Add Word8, Int8, ...
-  validValueTypeAnns _ = ["i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", "isize", "usize"]
-  valueDecoder = toInteger <$> valueDecoder @Int64
+instance DecodeValue String where
+  validValueTypeAnns _ = ["string"]
+  valueDecoder = Text.unpack <$> text
+instance DecodeValue Bool where
+  validValueTypeAnns _ = ["bool", "boolean"]
+  valueDecoder = bool
+instance (DecodeValue a) => DecodeValue (Maybe a) where
+  validValueTypeAnns _ = validValueTypeAnns (Proxy @a)
+  valueDecoder = oneOf [Nothing <$ null, Just <$> valueDecoder]
+instance (DecodeValue a, DecodeValue b) => DecodeValue (Either a b) where
+  validValueTypeAnns _ = validValueTypeAnns (Proxy @a) <> validValueTypeAnns (Proxy @b)
+  valueDecoder = oneOf [Left <$> valueDecoder, Right <$> valueDecoder]
+
+decodeInt :: (Integral b, Bounded b) => ValueDecoder a b
+decodeInt = withDecoder number $ \x -> do
+  unless (Scientific.isInteger x) $ do
+    failM $ "Expected integer, got: " <> (Text.pack . show) x
+  maybe (failM $ "Number doesn't fit bounds: " <> (Text.pack . show) x) pure $
+    Scientific.toBoundedInteger x
+instance DecodeValue Integer where
+  validValueTypeAnns _ =
+    concat
+      [ ["i8", "i16", "i32", "i64", "i128", "isize"]
+      , ["u8", "u16", "u32", "u64", "u128", "usize"]
+      ]
+  valueDecoder = toInteger <$> decodeInt @Int64
 instance DecodeValue Int where
   validValueTypeAnns _ =
     concat
@@ -835,24 +861,69 @@ instance DecodeValue Int where
       ]
    where
     bits = finiteBitSize (0 :: Int)
-  valueDecoder = fromIntegral <$> valueDecoder @Int64
+  valueDecoder = decodeInt
+instance DecodeValue Int8 where
+  validValueTypeAnns _ = ["i8"]
+  valueDecoder = decodeInt
+instance DecodeValue Int16 where
+  validValueTypeAnns _ = ["i16"]
+  valueDecoder = decodeInt
+instance DecodeValue Int32 where
+  validValueTypeAnns _ = ["i32"]
+  valueDecoder = decodeInt
 instance DecodeValue Int64 where
   validValueTypeAnns _ = ["i64"]
-  valueDecoder = withDecoder number $ \x -> do
-    unless (Scientific.isInteger x) $
-      failM $
-        "Expected integer, got: " <> (Text.pack . show) x
-    maybe (failM $ "Number is too large: " <> (Text.pack . show) x) pure $
-      Scientific.toBoundedInteger @Int64 x
-instance DecodeValue Scientific where -- FIXME: Add Double, Float, Rational
+  valueDecoder = decodeInt
+instance DecodeValue Word where
+  validValueTypeAnns _ =
+    concat
+      [ ["u8", "u16", "usize"]
+      , if bits >= 32 then ["u32"] else []
+      , if bits >= 64 then ["u64"] else []
+      ]
+   where
+    bits = finiteBitSize (0 :: Word)
+  valueDecoder = decodeInt
+instance DecodeValue Word8 where
+  validValueTypeAnns _ = ["u8"]
+  valueDecoder = decodeInt
+instance DecodeValue Word16 where
+  validValueTypeAnns _ = ["u16"]
+  valueDecoder = decodeInt
+instance DecodeValue Word32 where
+  validValueTypeAnns _ = ["u32"]
+  valueDecoder = decodeInt
+instance DecodeValue Word64 where
+  validValueTypeAnns _ = ["u64"]
+  valueDecoder = decodeInt
+instance DecodeValue Natural where
+  validValueTypeAnns _ = ["u8", "u16", "u32", "u64", "usize"]
+  valueDecoder = withDecoder (valueDecoder @Integer) $ \x -> do
+    when (x < 0) $ do
+      failM $ "Expected a non-negative number, got: " <> (Text.pack . show) x
+    pure $ fromIntegral x
+
+decodeRealFloat :: (RealFloat b) => ValueDecoder a b
+decodeRealFloat = withDecoder number $ \x -> do
+  either (\_ -> failM $ "Number is too small or too large: " <> (Text.pack . show) x) pure $
+    Scientific.toBoundedRealFloat x
+instance DecodeValue Scientific where
   validValueTypeAnns _ = ["f32", "f64", "decimal64", "decimal128"]
   valueDecoder = number
-instance DecodeValue Bool where
-  validValueTypeAnns _ = ["bool", "boolean"]
-  valueDecoder = bool
-instance (DecodeValue a) => DecodeValue (Maybe a) where
-  validValueTypeAnns _ = validValueTypeAnns (Proxy @a)
-  valueDecoder = oneOf [Nothing <$ null, Just <$> valueDecoder]
+instance DecodeValue Float where
+  validValueTypeAnns _ = ["f32"]
+  valueDecoder = decodeRealFloat
+instance DecodeValue Double where
+  validValueTypeAnns _ = ["f64"]
+  valueDecoder = decodeRealFloat
+instance DecodeValue Rational where
+  validValueTypeAnns _ = ["decimal64", "decimal128"]
+  valueDecoder = withDecoder number $ \x -> do
+    -- Use toBoundedRealFloat to guard against large values, but use
+    -- toRational after checking to maintain precision
+    case Scientific.toBoundedRealFloat @Double x of
+      Right _ -> pure $ toRational x
+      Left _ -> failM $ "Number is too small or too large: " <> (Text.pack . show) x
 
 valueDataDecoderPrim :: SchemaOf Value -> (Value -> DecodeM b) -> ValueDecoder a b
 valueDataDecoderPrim schema f = Decoder schema $ \_ -> Trans.lift . f =<< StateT.gets (.object)
