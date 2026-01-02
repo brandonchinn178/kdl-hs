@@ -453,7 +453,7 @@ argAt name = withDecodeValue $ argAtWith name
 --     KDL.argAtWith "verbose" [] KDL.bool -< ()
 -- KDL.decodeWith decoder config == Right True
 -- @
-argAtWith :: (Typeable b) => Text -> [Text] -> ValueDecoder a b -> NodeListDecoder a b
+argAtWith :: forall a b. (Typeable b) => Text -> [Text] -> ValueDecoder a b -> NodeListDecoder a b
 argAtWith name typeAnns decoder = nodeWith name [] $ argWith typeAnns decoder
 
 -- | A helper to decode all the arguments of the first node with the given name.
@@ -491,7 +491,7 @@ argsAt name = withDecodeValue $ argsAtWith name
 --     KDL.argsAtWith "email" [] KDL.text -< ()
 -- KDL.decodeWith decoder config == Right ["a@example.com", "b@example.com"]
 -- @
-argsAtWith :: (Typeable b) => Text -> [Text] -> ValueDecoder a b -> NodeListDecoder a [b]
+argsAtWith :: forall a b. (Typeable b) => Text -> [Text] -> ValueDecoder a b -> NodeListDecoder a [b]
 argsAtWith name typeAnns decoder = option [] $ nodeWith name [] $ many $ argWith typeAnns decoder
 
 -- | A helper for decoding child values in a list following the KDL convention of being named "-".

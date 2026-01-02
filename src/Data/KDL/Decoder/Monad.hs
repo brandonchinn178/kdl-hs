@@ -52,6 +52,10 @@ module Data.KDL.Decoder.Monad (
   dashChildrenAtWith,
   dashNodesAtWith,
 
+  -- ** Explicitly specify ValueDecoder
+  argAtWith,
+  argsAtWith,
+
   -- * Node
   NodeDecoder,
   arg,
@@ -66,11 +70,11 @@ module Data.KDL.Decoder.Monad (
 
   -- * ValueData
   ValueDecoder,
-  Arrow.any,
-  Arrow.text,
-  Arrow.number,
-  Arrow.bool,
-  Arrow.null,
+  any,
+  text,
+  number,
+  bool,
+  null,
   Arrow.oneOf,
 
   -- * Combinators
@@ -96,12 +100,13 @@ import Data.KDL.Decoder.Schema (
 import Data.KDL.Types (
   Document,
   Node,
-  NodeList,
+  NodeList, Value,
  )
 import Data.Map (Map)
 import Data.Text (Text)
 import Data.Typeable (Typeable)
 import Prelude hiding (any, fail, null)
+import Data.Scientific (Scientific)
 
 decodeWith :: forall a. DocumentDecoder a -> Text -> Either DecodeError a
 decodeWith = coerce (Arrow.decodeWith @a)
@@ -273,6 +278,23 @@ remainingNodesWith = coerce (Arrow.remainingNodesWith @() @a)
 argAt :: forall a. (Arrow.DecodeValue a) => Text -> NodeListDecoder a
 argAt = coerce (Arrow.argAt @a)
 
+-- | Same as 'argAt', except explicitly specify the 'ValueDecoder' instead of using 'DecodeValue'
+--
+-- == __Example__
+--
+-- @
+-- let
+--   config =
+--     """
+--     verbose #true
+--     """
+--   decoder = KDL.document $ do
+--     KDL.argAtWith "verbose" [] KDL.bool
+-- KDL.decodeWith decoder config == Right True
+-- @
+argAtWith :: forall a. (Typeable a) => Text -> [Text] -> ValueDecoder a -> NodeListDecoder a
+argAtWith = coerce (Arrow.argAtWith @() @a)
+
 -- | A helper to decode all the arguments of the first node with the given name.
 -- A utility for nodes that are acting like a key-value store with a list of values.
 --
@@ -290,6 +312,23 @@ argAt = coerce (Arrow.argAt @a)
 -- @
 argsAt :: forall a. (Arrow.DecodeValue a) => Text -> NodeListDecoder [a]
 argsAt = coerce (Arrow.argsAt @a)
+
+-- | Same as 'argsAt', except explicitly specify the 'ValueDecoder' instead of using 'DecodeValue'
+--
+-- == __Example__
+--
+-- @
+-- let
+--   config =
+--     """
+--     email "a@example.com" "b@example.com"
+--     """
+--   decoder = KDL.document $ do
+--     KDL.argsAtWith "email" [] KDL.text
+-- KDL.decodeWith decoder config == Right ["a@example.com", "b@example.com"]
+-- @
+argsAtWith :: forall a. (Typeable a) => Text -> [Text] -> ValueDecoder a -> NodeListDecoder [a]
+argsAtWith = coerce (Arrow.argsAtWith @() @a)
 
 -- | A helper for decoding child values in a list following the KDL convention of being named "-".
 --
@@ -410,4 +449,19 @@ children = coerce (Arrow.children @() @a)
 
 {----- Decoding Value -----}
 
-type ValueDecoder = Arrow.ValueDecoder ()
+type ValueDecoder a = Decoder Value a
+
+any :: ValueDecoder Value
+any = coerce (Arrow.any @())
+
+text :: ValueDecoder Text
+text = coerce (Arrow.text @())
+
+number :: ValueDecoder Scientific
+number = coerce (Arrow.number @())
+
+bool :: ValueDecoder Bool
+bool = coerce (Arrow.bool @())
+
+null :: ValueDecoder ()
+null = coerce (Arrow.null @())
