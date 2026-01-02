@@ -25,6 +25,7 @@ library
     Data.KDL
     Data.KDL.Decoder.Arrow
     Data.KDL.Decoder.DecodeM
+    Data.KDL.Decoder.Error
     Data.KDL.Decoder.Monad
     Data.KDL.Decoder.Schema
     Data.KDL.Parser

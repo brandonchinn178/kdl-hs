@@ -5,6 +5,13 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
+{-|
+Defines the types that make up a KDL document.
+
+This module enables @-XNoFieldSelectors@, so none of the fields create implicit
+selector functions. Instead, use @-XOverloadedRecordDot@, or the functions
+provided by this module.
+-}
 module Data.KDL.Types (
   -- * Document
   Document,
@@ -138,10 +145,10 @@ getArgAt name = listToMaybe . getArgsAt name
 -- let
 --   config =
 --     """
---     foo 1 2 #false
+--     foo 1 2 "test"
 --     """
 -- Right doc <- pure $ parse config
--- getArgsAt "foo" doc == [Number 1, Number 2, Bool False]
+-- getArgsAt "foo" doc == [Number 1, Number 2, Text "test"]
 -- @
 getArgsAt :: Text -> NodeList -> [Value]
 getArgsAt name = maybe [] getArgs . lookupNode name
@@ -157,11 +164,11 @@ getArgsAt name = maybe [] getArgs . lookupNode name
 --     foo {
 --       - 1
 --       - 2
---       - #false
+--       - "test"
 --     }
 --     """
 -- Right doc <- pure $ parse config
--- getDashNodesAt "foo" doc == [Number 1, Number 2, Bool False]
+-- getDashChildrenAt "foo" doc == [Number 1, Number 2, Text "test"]
 -- @
 getDashChildrenAt :: Text -> NodeList -> [Value]
 getDashChildrenAt name = mapMaybe getArg . getDashNodesAt name
@@ -177,11 +184,11 @@ getDashChildrenAt name = mapMaybe getArg . getDashNodesAt name
 --     foo {
 --       - 1
 --       - 2
---       - #false
+--       - "test"
 --     }
 --     """
 -- Right doc <- pure $ parse config
--- map getArg (getDashNodesAt "foo" doc) == [Just (Number 1), Just (Number 2), Just (Bool False)]
+-- mapM getArg (getDashNodesAt "foo" doc) == Just [Number 1, Number 2, Text "test"]
 -- @
 getDashNodesAt :: Text -> NodeList -> [Node]
 getDashNodesAt name = maybe [] (filterNodes "-") . (nodeChildren <=< lookupNode name)
