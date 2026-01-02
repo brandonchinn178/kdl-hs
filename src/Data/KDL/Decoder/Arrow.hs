@@ -26,7 +26,6 @@ module Data.KDL.Decoder.Arrow (
 
   -- * Decoder
   Decoder (..),
-  DecodeError (..),
   module Data.KDL.Decoder.DecodeM,
   fail,
   withDecoder,
@@ -86,6 +85,7 @@ module Data.KDL.Decoder.Arrow (
   some,
 
   -- * Internal API
+  runDecodeStateM,
   HasDecodeHistory (..),
   DecodeState (..),
 ) where

@@ -122,7 +122,7 @@ makeNonFatal (DecodeM f) = DecodeM $ \_ onFail onSuccess -> f onFail onFail onSu
 addContext :: ContextItem -> DecodeM a -> DecodeM a
 addContext ctxItem (DecodeM f) = DecodeM $ \onFatal onFail onSuccess -> f (onFatal . addCtx) (onFail . addCtx) onSuccess
  where
-  addCtx (DecodeError es) = DecodeError $ [(ctxItem : ctx, msg) | (ctx, msg) <- es]
+  addCtx (DecodeError es) = DecodeError [(ctxItem : ctx, msg) | (ctx, msg) <- es]
 
 runDecodeM :: DecodeM a -> Either DecodeError a
 runDecodeM (DecodeM f) = f Left Left Right
