@@ -3,7 +3,7 @@
 
 module Data.KDL.Decoder.MonadSpec (spec) where
 
-import Control.Monad (forM_, when)
+import Control.Monad (forM_, unless, when)
 import Data.KDL qualified as KDL
 import Data.KDL.Types (
   Entry (..),
@@ -26,6 +26,12 @@ decodeErrorMsg msgs = P.left (KDL.renderDecodeError P.>>> P.eq msg)
 
 spec :: Spec
 spec = do
+  apiSpec
+  decodeNodeSpec
+  decodeValueSpec
+
+apiSpec :: Spec
+apiSpec = do
   describe "decodeWith" $ do
     it "fails with helpful error if parsing fails" $ do
       let config = "foo hello= 123"
@@ -1007,3 +1013,94 @@ spec = do
             decoder = KDL.document $ do
               KDL.nodeWith "foo" [] $ KDL.option 123 $ KDL.arg @Int
         KDL.decodeWith decoder config `shouldBe` Right 123
+
+newtype MyNode = MyNode Int
+  deriving (Eq)
+
+instance KDL.DecodeNode MyNode where
+  validNodeTypeAnns _ = ["MyNode"]
+  nodeDecoder = KDL.withoutSchema $ do
+    x <- KDL.arg
+    unless (0 < x && x < 10) $ do
+      KDL.fail $ "Invalid argument: " <> (Text.pack . show) x
+    pure $ MyNode x
+
+decodeNodeSpec :: Spec
+decodeNodeSpec = do
+  describe "DecodeNode" $ do
+    it "decodes a custom node" $ do
+        let config = "foo 1"
+            decoder = KDL.document $ do
+              KDL.node "foo"
+        KDL.decodeWith decoder config `shouldBe` Right (MyNode 1)
+
+    it "throws user-specified error" $ do
+        let config = "foo 100"
+            decoder = KDL.document $ do
+              KDL.node @MyNode "foo"
+        KDL.decodeWith decoder config
+          `shouldSatisfy` decodeErrorMsg
+            [ "At: foo #0"
+            , "  Invalid argument: 100"
+            ]
+
+    it "decodes valid type ann" $ do
+        let config = "(MyNode)foo 1"
+            decoder = KDL.document $ do
+              KDL.node "foo"
+        KDL.decodeWith decoder config `shouldBe` Right (MyNode 1)
+
+    it "fails on invalid type ann" $ do
+        let config = "(bad)foo 1"
+            decoder = KDL.document $ do
+              KDL.node @MyNode "foo"
+        KDL.decodeWith decoder config
+          `shouldSatisfy` decodeErrorMsg
+            [ "At: foo #0"
+            , "  Expected annotation to be one of [\"MyNode\"], got: bad"
+            ]
+
+newtype MyVal = MyVal Double
+  deriving (Eq)
+
+instance KDL.DecodeValue MyVal where
+  validValueTypeAnns _ = ["MyVal"]
+  valueDecoder = KDL.withoutSchema . KDL.withDecoder KDL.number $ \x -> do
+    unless (0 < x && x < 10) $ do
+      KDL.failM $ "Invalid value: " <> (Text.pack . show) x
+    pure $ MyVal (realToFrac x)
+
+decodeValueSpec :: Spec
+decodeValueSpec = do
+  describe "DecodeValue" $ do
+    it "decodes a custom value" $ do
+        let config = "foo 1"
+            decoder = KDL.document $ do
+              KDL.argAt "foo"
+        KDL.decodeWith decoder config `shouldBe` Right (MyVal 1)
+
+    it "throws user-specified error" $ do
+        let config = "foo 100.0"
+            decoder = KDL.document $ do
+              KDL.argAt @MyVal "foo"
+        KDL.decodeWith decoder config
+          `shouldSatisfy` decodeErrorMsg
+            [ "At: foo #0 > arg #0"
+            , "  Invalid value: 100.0"
+            ]
+
+    it "decodes valid type ann" $ do
+        let config = "foo (MyVal)1"
+            decoder = KDL.document $ do
+              KDL.argAt "foo"
+        KDL.decodeWith decoder config `shouldBe` Right (MyVal 1)
+
+    it "fails on invalid type ann" $ do
+        let config = "foo (bad)1"
+            decoder = KDL.document $ do
+              KDL.argAt @MyVal "foo"
+        KDL.decodeWith decoder config
+          `shouldSatisfy` decodeErrorMsg
+            [ "At: foo #0 > arg #0"
+            , "  Expected annotation to be one of [\"MyVal\"], got: bad"
+            ]
