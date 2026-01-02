@@ -46,15 +46,20 @@ module Data.KDL.Decoder.Monad (
   dashChildrenAt,
   dashNodesAt,
 
-  -- ** Explicitly specify NodeDecoder
+  -- ** Explicitly specify decoders
   nodeWith,
   remainingNodesWith,
   dashChildrenAtWith,
   dashNodesAtWith,
-
-  -- ** Explicitly specify ValueDecoder
   argAtWith,
   argsAtWith,
+
+  -- ** Explicitly specify decoders and type anns
+  nodeWith',
+  remainingNodesWith',
+  dashChildrenAtWith',
+  argAtWith',
+  argsAtWith',
 
   -- * Node
   NodeDecoder,
@@ -63,10 +68,15 @@ module Data.KDL.Decoder.Monad (
   remainingProps,
   children,
 
-  -- ** Explicitly specify ValueDecoder
+  -- ** Explicitly specify decoders
   argWith,
   propWith,
   remainingPropsWith,
+
+  -- ** Explicitly specify decoders and type anns
+  argWith',
+  propWith',
+  remainingPropsWith',
 
   -- * ValueData
   ValueDecoder,
@@ -214,8 +224,12 @@ node = coerce (Arrow.node @a)
 --     many . KDL.nodeWith "person" ["Person"] $ KDL.arg
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob", "Charlie", "Danielle"]
 -- @
-nodeWith :: forall a. (Typeable a) => Text -> [Text] -> NodeDecoder a -> NodeListDecoder a
+nodeWith :: forall a. (Typeable a) => Text -> NodeDecoder a -> NodeListDecoder a
 nodeWith = coerce (Arrow.nodeWith @() @a)
+
+-- | Same as 'nodeWith', except allow specifying type annotations.
+nodeWith' :: forall a. (Typeable a) => Text -> [Text] -> NodeDecoder a -> NodeListDecoder a
+nodeWith' = coerce (Arrow.nodeWith' @() @a)
 
 -- | Decode all remaining nodes with the given decoder.
 --
@@ -257,8 +271,12 @@ remainingNodes = coerce (Arrow.remainingNodes @a)
 --     KDL.remainingNodesWith [] KDL.arg
 -- KDL.decodeWith decoder config == Right (Map.fromList [("build", ["pkg1", "pkg2"]), ("lint", ["pkg1"])])
 -- @
-remainingNodesWith :: forall a. (Typeable a) => [Text] -> NodeDecoder a -> NodeListDecoder (Map Text [a])
+remainingNodesWith :: forall a. (Typeable a) => NodeDecoder a -> NodeListDecoder (Map Text [a])
 remainingNodesWith = coerce (Arrow.remainingNodesWith @() @a)
+
+-- | Same as 'remainingNodesWith', except allow specifying type annotations.
+remainingNodesWith' :: forall a. (Typeable a) => [Text] -> NodeDecoder a -> NodeListDecoder (Map Text [a])
+remainingNodesWith' = coerce (Arrow.remainingNodesWith' @() @a)
 
 -- | A helper to decode the first argument of the first node with the given name.
 -- A utility for nodes that are acting like a key-value store.
@@ -292,8 +310,12 @@ argAt = coerce (Arrow.argAt @a)
 --     KDL.argAtWith "verbose" [] KDL.bool
 -- KDL.decodeWith decoder config == Right True
 -- @
-argAtWith :: forall a. (Typeable a) => Text -> [Text] -> ValueDecoder a -> NodeListDecoder a
+argAtWith :: forall a. (Typeable a) => Text -> ValueDecoder a -> NodeListDecoder a
 argAtWith = coerce (Arrow.argAtWith @() @a)
+
+-- | Same as 'argAtWith', except allow specifying type annotations.
+argAtWith' :: forall a. (Typeable a) => Text -> [Text] -> ValueDecoder a -> NodeListDecoder a
+argAtWith' = coerce (Arrow.argAtWith' @() @a)
 
 -- | A helper to decode all the arguments of the first node with the given name.
 -- A utility for nodes that are acting like a key-value store with a list of values.
@@ -327,8 +349,12 @@ argsAt = coerce (Arrow.argsAt @a)
 --     KDL.argsAtWith "email" [] KDL.text
 -- KDL.decodeWith decoder config == Right ["a@example.com", "b@example.com"]
 -- @
-argsAtWith :: forall a. (Typeable a) => Text -> [Text] -> ValueDecoder a -> NodeListDecoder [a]
+argsAtWith :: forall a. (Typeable a) => Text -> ValueDecoder a -> NodeListDecoder [a]
 argsAtWith = coerce (Arrow.argsAtWith @() @a)
+
+-- | Same as 'argsAtWith', except allow specifying type annotations.
+argsAtWith' :: forall a. (Typeable a) => Text -> [Text] -> ValueDecoder a -> NodeListDecoder [a]
+argsAtWith' = coerce (Arrow.argsAtWith' @() @a)
 
 -- | A helper for decoding child values in a list following the KDL convention of being named "-".
 --
@@ -367,8 +393,12 @@ dashChildrenAt = coerce (Arrow.dashChildrenAt @a)
 --     KDL.dashChildrenAtWith "attendees" [] KDL.text
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob"]
 -- @
-dashChildrenAtWith :: forall a. (Typeable a) => Text -> [Text] -> ValueDecoder a -> NodeListDecoder [a]
+dashChildrenAtWith :: forall a. (Typeable a) => Text -> ValueDecoder a -> NodeListDecoder [a]
 dashChildrenAtWith = coerce (Arrow.dashChildrenAtWith @() @a)
+
+-- | Same as 'dashChildrenAtWith', except allow specifying type annotations.
+dashChildrenAtWith' :: forall a. (Typeable a) => Text -> [Text] -> ValueDecoder a -> NodeListDecoder [a]
+dashChildrenAtWith' = coerce (Arrow.dashChildrenAtWith' @() @a)
 
 -- | A helper for decoding child values in a list following the KDL convention of being named "-".
 --
@@ -424,24 +454,36 @@ arg :: forall a. (Arrow.DecodeValue a) => NodeDecoder a
 arg = coerce (Arrow.arg @a)
 
 -- FIXME: document
-argWith :: forall a. (Typeable a) => [Text] -> ValueDecoder a -> NodeDecoder a
+argWith :: forall a. (Typeable a) => ValueDecoder a -> NodeDecoder a
 argWith = coerce (Arrow.argWith @() @a)
+
+-- | Same as 'argWith', except allow specifying type annotations.
+argWith' :: forall a. (Typeable a) => [Text] -> ValueDecoder a -> NodeDecoder a
+argWith' = coerce (Arrow.argWith' @() @a)
 
 -- | FIXME: document
 prop :: forall a. (Arrow.DecodeValue a) => Text -> NodeDecoder a
 prop = coerce (Arrow.prop @a)
 
 -- | FIXME: document
-propWith :: forall a. (Typeable a) => Text -> [Text] -> ValueDecoder a -> NodeDecoder a
+propWith :: forall a. (Typeable a) => Text -> ValueDecoder a -> NodeDecoder a
 propWith = coerce (Arrow.propWith @() @a)
+
+-- | Same as 'propWith', except allow specifying type annotations.
+propWith' :: forall a. (Typeable a) => Text -> [Text] -> ValueDecoder a -> NodeDecoder a
+propWith' = coerce (Arrow.propWith' @() @a)
 
 -- | FIXME: document
 remainingProps :: forall a. (Arrow.DecodeValue a) => NodeDecoder (Map Text a)
 remainingProps = coerce (Arrow.remainingProps @a)
 
 -- | FIXME: document
-remainingPropsWith :: forall a. (Typeable a) => [Text] -> ValueDecoder a -> NodeDecoder (Map Text a)
+remainingPropsWith :: forall a. (Typeable a) => ValueDecoder a -> NodeDecoder (Map Text a)
 remainingPropsWith = coerce (Arrow.remainingPropsWith @() @a)
+
+-- | Same as 'remainingPropsWith', except allow specifying type annotations.
+remainingPropsWith' :: forall a. (Typeable a) => [Text] -> ValueDecoder a -> NodeDecoder (Map Text a)
+remainingPropsWith' = coerce (Arrow.remainingPropsWith' @() @a)
 
 -- | FIXME: document
 children :: forall a. NodeListDecoder a -> NodeDecoder a
