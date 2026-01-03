@@ -81,7 +81,7 @@ module Data.KDL.Decoder.Arrow (
 
   -- * Decoder
   Decoder (..),
-  module Data.KDL.Decoder.DecodeM,
+  module Data.KDL.Decoder.Internal.DecodeM,
   fail,
   withDecoder,
   debug,
@@ -169,7 +169,7 @@ import Control.Monad.Trans.State.Strict (StateT)
 import Control.Monad.Trans.State.Strict qualified as StateT
 import Data.Bits (finiteBitSize)
 import Data.Int (Int64)
-import Data.KDL.Decoder.DecodeM
+import Data.KDL.Decoder.Internal.DecodeM
 import Data.KDL.Decoder.Schema (
   Schema (..),
   SchemaItem (..),

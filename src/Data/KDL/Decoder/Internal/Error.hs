@@ -4,7 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
-module Data.KDL.Decoder.Error (
+module Data.KDL.Decoder.Internal.Error (
   DecodeError (..),
   BaseDecodeError (..),
   Context,

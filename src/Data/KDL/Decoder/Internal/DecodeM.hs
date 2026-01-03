@@ -4,9 +4,9 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
-module Data.KDL.Decoder.DecodeM (
+module Data.KDL.Decoder.Internal.DecodeM (
   -- * Decoding errors
-  module Data.KDL.Decoder.Error,
+  module Data.KDL.Decoder.Internal.Error,
 
   -- * DecodeM monad
   DecodeM (..),
@@ -19,7 +19,7 @@ module Data.KDL.Decoder.DecodeM (
 ) where
 
 import Control.Applicative (Alternative (..))
-import Data.KDL.Decoder.Error
+import Data.KDL.Decoder.Internal.Error
 import Data.Text (Text)
 
 -- | The monad that returns either a 'DecodeError' or a result of type @a@.

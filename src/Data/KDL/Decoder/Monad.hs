@@ -22,7 +22,7 @@ module Data.KDL.Decoder.Monad (
 
   -- * Decoder
   Decoder,
-  module Data.KDL.Decoder.DecodeM,
+  module Data.KDL.Decoder.Internal.DecodeM,
   fail,
   withDecoder,
   debug,
@@ -98,7 +98,7 @@ import Control.Applicative (Alternative)
 import Control.Arrow qualified as Arrow
 import Data.Coerce (coerce)
 import Data.KDL.Decoder.Arrow qualified as Arrow
-import Data.KDL.Decoder.DecodeM
+import Data.KDL.Decoder.Internal.DecodeM
 import Data.KDL.Decoder.Schema (
   Schema (..),
  )
