@@ -35,24 +35,28 @@ data family SchemaItem a
 data instance SchemaItem NodeList
   = NodeNamed Text TypedNodeSchema
   | RemainingNodes TypedNodeSchema
+  deriving (Show, Eq)
 
 data TypedNodeSchema = TypedNodeSchema
   { typeHint :: TypeRep
   , validTypeAnns :: [Text]
   , nodeSchema :: SchemaOf Node
   }
+  deriving (Show, Eq)
 
 data instance SchemaItem Node
   = NodeArg TypedValueSchema
   | NodeProp Text TypedValueSchema
   | NodeRemainingProps TypedValueSchema
   | NodeChildren (SchemaOf NodeList)
+  deriving (Show, Eq)
 
 data TypedValueSchema = TypedValueSchema
   { typeHint :: TypeRep
   , validTypeAnns :: [Text]
   , dataSchema :: SchemaOf Value
   }
+  deriving (Show, Eq)
 
 data instance SchemaItem Value
   = TextSchema
@@ -65,7 +69,7 @@ schemaJoin :: Schema a -> Schema a -> Schema a
 schemaJoin = curry $ \case
   (SchemaAnd l, SchemaAnd r) -> SchemaAnd (l <> r)
   (l, SchemaAnd r) -> SchemaAnd (l : r)
-  (SchemaAnd l, r) -> SchemaAnd (r : l)
+  (SchemaAnd l, r) -> SchemaAnd (l <> [r])
   (l, r) -> SchemaAnd [l, r]
 
 schemaAlt :: Schema a -> Schema a -> Schema a

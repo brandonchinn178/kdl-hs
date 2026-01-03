@@ -207,7 +207,7 @@ data Decoder o a b = Decoder
 
 instance Category (Decoder o) where
   id = liftDecodeM pure
-  Decoder sch1 bc . Decoder sch2 ab = Decoder (sch1 `schemaJoin` sch2) $ ab >=> bc
+  Decoder sch2 bc . Decoder sch1 ab = Decoder (sch1 `schemaJoin` sch2) $ ab >=> bc
 instance Arrow (Decoder o) where
   arr f = liftDecodeM (pure . f)
   Decoder sch1 bc *** Decoder sch2 bc' =

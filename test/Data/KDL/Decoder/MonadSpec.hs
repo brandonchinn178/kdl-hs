@@ -1045,36 +1045,36 @@ decodeNodeSpec :: Spec
 decodeNodeSpec = do
   describe "DecodeNode" $ do
     it "decodes a custom node" $ do
-        let config = "foo 1"
-            decoder = KDL.document $ do
-              KDL.node "foo"
-        KDL.decodeWith decoder config `shouldBe` Right (MyNode 1)
+      let config = "foo 1"
+          decoder = KDL.document $ do
+            KDL.node "foo"
+      KDL.decodeWith decoder config `shouldBe` Right (MyNode 1)
 
     it "throws user-specified error" $ do
-        let config = "foo 100"
-            decoder = KDL.document $ do
-              KDL.node @MyNode "foo"
-        KDL.decodeWith decoder config
-          `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0"
-            , "  Invalid argument: 100"
-            ]
+      let config = "foo 100"
+          decoder = KDL.document $ do
+            KDL.node @MyNode "foo"
+      KDL.decodeWith decoder config
+        `shouldSatisfy` decodeErrorMsg
+          [ "At: foo #0"
+          , "  Invalid argument: 100"
+          ]
 
     it "decodes valid type ann" $ do
-        let config = "(MyNode)foo 1"
-            decoder = KDL.document $ do
-              KDL.node "foo"
-        KDL.decodeWith decoder config `shouldBe` Right (MyNode 1)
+      let config = "(MyNode)foo 1"
+          decoder = KDL.document $ do
+            KDL.node "foo"
+      KDL.decodeWith decoder config `shouldBe` Right (MyNode 1)
 
     it "fails on invalid type ann" $ do
-        let config = "(bad)foo 1"
-            decoder = KDL.document $ do
-              KDL.node @MyNode "foo"
-        KDL.decodeWith decoder config
-          `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0"
-            , "  Expected annotation to be one of [\"MyNode\"], got: bad"
-            ]
+      let config = "(bad)foo 1"
+          decoder = KDL.document $ do
+            KDL.node @MyNode "foo"
+      KDL.decodeWith decoder config
+        `shouldSatisfy` decodeErrorMsg
+          [ "At: foo #0"
+          , "  Expected annotation to be one of [\"MyNode\"], got: bad"
+          ]
 
 newtype MyVal = MyVal Double
   deriving (Eq)
@@ -1090,33 +1090,33 @@ decodeValueSpec :: Spec
 decodeValueSpec = do
   describe "DecodeValue" $ do
     it "decodes a custom value" $ do
-        let config = "foo 1"
-            decoder = KDL.document $ do
-              KDL.argAt "foo"
-        KDL.decodeWith decoder config `shouldBe` Right (MyVal 1)
+      let config = "foo 1"
+          decoder = KDL.document $ do
+            KDL.argAt "foo"
+      KDL.decodeWith decoder config `shouldBe` Right (MyVal 1)
 
     it "throws user-specified error" $ do
-        let config = "foo 100.0"
-            decoder = KDL.document $ do
-              KDL.argAt @MyVal "foo"
-        KDL.decodeWith decoder config
-          `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > arg #0"
-            , "  Invalid value: 100.0"
-            ]
+      let config = "foo 100.0"
+          decoder = KDL.document $ do
+            KDL.argAt @MyVal "foo"
+      KDL.decodeWith decoder config
+        `shouldSatisfy` decodeErrorMsg
+          [ "At: foo #0 > arg #0"
+          , "  Invalid value: 100.0"
+          ]
 
     it "decodes valid type ann" $ do
-        let config = "foo (MyVal)1"
-            decoder = KDL.document $ do
-              KDL.argAt "foo"
-        KDL.decodeWith decoder config `shouldBe` Right (MyVal 1)
+      let config = "foo (MyVal)1"
+          decoder = KDL.document $ do
+            KDL.argAt "foo"
+      KDL.decodeWith decoder config `shouldBe` Right (MyVal 1)
 
     it "fails on invalid type ann" $ do
-        let config = "foo (bad)1"
-            decoder = KDL.document $ do
-              KDL.argAt @MyVal "foo"
-        KDL.decodeWith decoder config
-          `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > arg #0"
-            , "  Expected annotation to be one of [\"MyVal\"], got: bad"
-            ]
+      let config = "foo (bad)1"
+          decoder = KDL.document $ do
+            KDL.argAt @MyVal "foo"
+      KDL.decodeWith decoder config
+        `shouldSatisfy` decodeErrorMsg
+          [ "At: foo #0 > arg #0"
+          , "  Expected annotation to be one of [\"MyVal\"], got: bad"
+          ]
