@@ -922,7 +922,7 @@ apiSpec = do
   describe "ValueDecoder" $ do
     describe "any" $ do
       it "decodes any value" $ do
-        let config = "foo 1.0 asdf true"
+        let config = "foo 1.0 asdf #true"
             decoder = KDL.document $ do
               KDL.argsAtWith "foo" KDL.any
             val data_ =
@@ -970,7 +970,7 @@ apiSpec = do
 
     describe "bool" $ do
       it "decodes bool value" $ do
-        let config = "foo true"
+        let config = "foo #true"
             decoder = KDL.document $ do
               KDL.argAtWith "foo" KDL.bool
         KDL.decodeWith decoder config `shouldBe` Right True
@@ -987,7 +987,7 @@ apiSpec = do
 
     describe "null" $ do
       it "decodes null value" $ do
-        let config = "foo null"
+        let config = "foo #null"
             decoder = KDL.document $ do
               KDL.argAtWith "foo" KDL.null
         KDL.decodeWith decoder config `shouldBe` Right ()

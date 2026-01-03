@@ -203,10 +203,10 @@ identifier = label "Identifier" $ do
   iichar c = ichar c && c `notElem` ['0' .. '9']
 
 nullvalue :: Parser Text
-nullvalue = string "null"
+nullvalue = string "#null"
 
 bool :: Parser Bool
-bool = True <$ string "true" <|> False <$ string "false"
+bool = True <$ string "#true" <|> False <$ string "#false"
 
 property :: Parser (Identifier, Value)
 property = label "Property" $ do
