@@ -24,6 +24,7 @@ library
   hs-source-dirs: src
   exposed-modules:
     Data.KDL
+    Data.KDL.Decoder
     Data.KDL.Decoder.Arrow
     Data.KDL.Decoder.Internal.DecodeM
     Data.KDL.Decoder.Internal.Error
