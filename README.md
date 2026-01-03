@@ -31,7 +31,7 @@ main = do
   config <- KDL.decodeFileWith decoder "config.kdl"
   print config
 
-decoder :: KDL.Decoder Config
+decoder :: KDL.DocumentDecoder Config
 decoder = KDL.document $ do
   KDL.node "package"
 

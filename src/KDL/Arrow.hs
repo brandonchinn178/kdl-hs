@@ -29,14 +29,14 @@ Parse it with:
 @
 {\-# LANGUAGE Arrows #-\}
 
-import KDL.Decoder.Arrow qualified as KDL
+import KDL.Arrow qualified as KDL
 
 main :: IO ()
 main = do
   config <- KDL.decodeFileWith decoder "config.kdl"
   print config
 
-decoder :: KDL.Decoder Config
+decoder :: KDL.DocumentDecoder Config
 decoder = KDL.document $ proc () -> do
   KDL.node "package" -< ()
 
