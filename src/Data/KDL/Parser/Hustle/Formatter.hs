@@ -1,3 +1,4 @@
+{- FOURMOLU_DISABLE -}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}

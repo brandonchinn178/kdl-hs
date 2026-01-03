@@ -105,13 +105,14 @@ import Data.KDL.Decoder.Schema (
 import Data.KDL.Types (
   Document,
   Node,
-  NodeList, Value,
+  NodeList,
+  Value,
  )
 import Data.Map (Map)
+import Data.Scientific (Scientific)
 import Data.Text (Text)
 import Data.Typeable (Typeable)
 import Prelude hiding (any, fail, null)
-import Data.Scientific (Scientific)
 
 -- | Decode the given KDL configuration with the given decoder.
 decodeWith :: forall a. DocumentDecoder a -> Text -> Either DecodeError a
@@ -150,35 +151,34 @@ instance Monad (Decoder o) where
       let Decoder (Arrow.Decoder _ run2) = k x
       run2 a
 
-{- $decodeTypeClassesDoc
-To avoid code duplication, the same 'DecodeNode' and 'DecodeValue' type classes
-are used for both the Arrow and Monad decoders. However, the type classes are
-implemented with the Arrow decoder, as the Monad decoder is lossy regarding the
-schema. If you're implementing instances that may be used with the Arrow
-decoder, you should probably implement the decoder with
-the "Data.KDL.Decoder.Arrow" API.
-
-Otherwise, use the normal Monad decoder API and use 'noSchema' at the very end,
-which indicates that this instance doesn't provide any schema information.
-
-@
-instance KDL.DecodeNode Person where
-  nodeDecoder = KDL.noSchema $ do
-    name <- KDL.arg
-    age <- KDL.prop "age"
-    pure Person{..}
-
-instance KDL.DecodeValue MyVal where
-  valueDecoder =
-    KDL.noSchema . KDL.oneOf $
-      [ MyText \<$> KDL.text
-      , KDL.withDecoder KDL.number $ \x -> do
-          if x == 0
-            then pure MyZero
-            else KDL.failM "integer value must be zero"
-      ]
-@
--}
+-- $decodeTypeClassesDoc
+-- To avoid code duplication, the same 'DecodeNode' and 'DecodeValue' type classes
+-- are used for both the Arrow and Monad decoders. However, the type classes are
+-- implemented with the Arrow decoder, as the Monad decoder is lossy regarding the
+-- schema. If you're implementing instances that may be used with the Arrow
+-- decoder, you should probably implement the decoder with
+-- the "Data.KDL.Decoder.Arrow" API.
+--
+-- Otherwise, use the normal Monad decoder API and use 'noSchema' at the very end,
+-- which indicates that this instance doesn't provide any schema information.
+--
+-- @
+-- instance KDL.DecodeNode Person where
+--   nodeDecoder = KDL.noSchema $ do
+--     name <- KDL.arg
+--     age <- KDL.prop "age"
+--     pure Person{..}
+--
+-- instance KDL.DecodeValue MyVal where
+--   valueDecoder =
+--     KDL.noSchema . KDL.oneOf $
+--       [ MyText \<$> KDL.text
+--       , KDL.withDecoder KDL.number $ \x -> do
+--           if x == 0
+--             then pure MyZero
+--             else KDL.failM "integer value must be zero"
+--       ]
+-- @
 
 -- | Drop the Monad Decoder back down to an Arrow Decoder.
 noSchema :: Decoder o a -> Arrow.Decoder o () a

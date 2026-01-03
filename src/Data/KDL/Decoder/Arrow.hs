@@ -34,7 +34,7 @@ package {
 Parse it with:
 
 @
-{-# LANGUAGE Arrows #-}
+{\-# LANGUAGE Arrows #-\}
 
 import Data.KDL.Decoder.Arrow qualified as KDL
 

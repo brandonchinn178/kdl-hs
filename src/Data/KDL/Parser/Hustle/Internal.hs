@@ -1,3 +1,4 @@
+{- FOURMOLU_DISABLE -}
 {-# LANGUAGE OverloadedStrings #-}
 
 {- | Vendered from https://github.com/fuzzypixelz/hustle -}

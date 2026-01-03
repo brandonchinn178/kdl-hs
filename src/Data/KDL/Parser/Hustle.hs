@@ -1,5 +1,6 @@
-{- | Vendered from https://github.com/fuzzypixelz/hustle -}
+{- FOURMOLU_DISABLE -}
 
+{- | Vendered from https://github.com/fuzzypixelz/hustle -}
 module Data.KDL.Parser.Hustle
   ( Parser
   , Document(..)
