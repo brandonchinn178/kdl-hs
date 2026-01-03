@@ -1,9 +1,12 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module KDL.Decoder.Internal.Monad (
+module KDL.Decoder.Internal.Decoder (
   -- * Decoder
-  Decoder (..),
+  Decoder,
+
+  -- * DecodeArrow
+  DecodeArrow (..),
   liftDecodeM,
   withDecoder,
   fail,
@@ -92,7 +95,7 @@ runDecodeStateM o hist m =
       , history = hist
       }
 
--- | @Decoder o a b@ represents an arrow with input @a@ and output @b@, within
+-- | @DecodeArrow o a b@ represents an arrow with input @a@ and output @b@, within
 -- the context of decoding a KDL object of type @o@. It also knows the expected
 -- schema of @o@. Most of the time, @a@ is @()@; it would only be different if
 -- you're using Arrows notation.
@@ -103,56 +106,58 @@ runDecodeStateM o hist m =
 --   2. Use previously decoded values to inform decoding other values
 --
 -- Using monads alone would lose (1), but applicatives can't do (2).
-data Decoder o a b = Decoder
+data DecodeArrow o a b = DecodeArrow
   { schema :: SchemaOf o
   , run :: a -> DecodeStateM o b
   }
 
-instance Category (Decoder o) where
+instance Category (DecodeArrow o) where
   id = liftDecodeM pure
-  Decoder sch2 bc . Decoder sch1 ab = Decoder (sch1 `schemaJoin` sch2) $ ab >=> bc
-instance Arrow (Decoder o) where
+  DecodeArrow sch2 bc . DecodeArrow sch1 ab = DecodeArrow (sch1 `schemaJoin` sch2) $ ab >=> bc
+instance Arrow (DecodeArrow o) where
   arr f = liftDecodeM (pure . f)
-  Decoder sch1 bc *** Decoder sch2 bc' =
-    Decoder (sch1 `schemaJoin` sch2) $ \(b, b') -> (,) <$> bc b <*> bc' b'
-instance ArrowChoice (Decoder o) where
-  Decoder sch1 bc +++ Decoder sch2 bc' =
-    Decoder (sch1 `schemaAlt` sch2) $ either (fmap Left . bc) (fmap Right . bc')
+  DecodeArrow sch1 bc *** DecodeArrow sch2 bc' =
+    DecodeArrow (sch1 `schemaJoin` sch2) $ \(b, b') -> (,) <$> bc b <*> bc' b'
+instance ArrowChoice (DecodeArrow o) where
+  DecodeArrow sch1 bc +++ DecodeArrow sch2 bc' =
+    DecodeArrow (sch1 `schemaAlt` sch2) $ either (fmap Left . bc) (fmap Right . bc')
 
-instance Functor (Decoder o a) where
-  fmap f (Decoder schema run) = Decoder schema $ (fmap f . run)
-instance Applicative (Decoder o a) where
+instance Functor (DecodeArrow o a) where
+  fmap f (DecodeArrow schema run) = DecodeArrow schema $ (fmap f . run)
+instance Applicative (DecodeArrow o a) where
   pure = arr . const
-  Decoder sch1 kf <*> Decoder sch2 kx =
-    Decoder (sch1 `schemaJoin` sch2) $ \a -> kf a <*> kx a
-instance Alternative (Decoder o a) where
+  DecodeArrow sch1 kf <*> DecodeArrow sch2 kx =
+    DecodeArrow (sch1 `schemaJoin` sch2) $ \a -> kf a <*> kx a
+instance Alternative (DecodeArrow o a) where
   -- Can't use StateT's Alternative instance: https://hub.darcs.net/ross/transformers/issue/78
-  empty = Decoder (SchemaOr []) $ \_ -> Trans.lift empty
-  Decoder sch1 run1 <|> Decoder sch2 run2 =
-    Decoder (sch1 `schemaAlt` sch2) $ \a -> StateT.StateT $ \s -> do
+  empty = DecodeArrow (SchemaOr []) $ \_ -> Trans.lift empty
+  DecodeArrow sch1 run1 <|> DecodeArrow sch2 run2 =
+    DecodeArrow (sch1 `schemaAlt` sch2) $ \a -> StateT.StateT $ \s -> do
       StateT.runStateT (run1 a) s <|> StateT.runStateT (run2 a) s
-  some (Decoder sch run) =
-    Decoder (SchemaSome sch) $ \a ->
+  some (DecodeArrow sch run) =
+    DecodeArrow (SchemaSome sch) $ \a ->
       StateT.StateT $
         let go s0 = do
               (x, s1) <- StateT.runStateT (run a) s0
               (xs, s2) <- go s1 <|> pure ([], s1)
               pure (x : xs, s2)
          in go
-  many (Decoder sch run) = some (Decoder sch run) <|> pure []
+  many (DecodeArrow sch run) = some (DecodeArrow sch run) <|> pure []
+
+type Decoder o a = DecodeArrow o () a
 
 -- | Eliminates all schema information; avoid whenever possible.
-instance Monad (Decoder o a) where
-  Decoder _ run1 >>= k =
-    Decoder SchemaUnknown $ \a -> do
+instance Monad (DecodeArrow o a) where
+  DecodeArrow _ run1 >>= k =
+    DecodeArrow SchemaUnknown $ \a -> do
       x <- run1 a
-      let Decoder _ run2 = k x
+      let DecodeArrow _ run2 = k x
       run2 a
 
-liftDecodeM :: (a -> DecodeM b) -> Decoder o a b
-liftDecodeM f = Decoder (SchemaAnd []) (Trans.lift . f)
+liftDecodeM :: (a -> DecodeM b) -> DecodeArrow o a b
+liftDecodeM f = DecodeArrow (SchemaAnd []) (Trans.lift . f)
 
--- | Run actions within a t'Decoder'. Useful for adding post-processing logic.
+-- | Run actions within a t'DecodeArrow'. Useful for adding post-processing logic.
 --
 -- === __Example__
 --
@@ -162,7 +167,7 @@ liftDecodeM f = Decoder (SchemaAnd []) (Trans.lift . f)
 --     KDL.failM $ "argument is too large: " <> (Text.pack . show) x
 --   pure $ MyVal x
 -- @
-withDecoder :: forall o a b c. Decoder o a b -> (b -> DecodeM c) -> Decoder o a c
+withDecoder :: forall o a b c. DecodeArrow o a b -> (b -> DecodeM c) -> DecodeArrow o a c
 withDecoder decoder f = decoder >>> liftDecodeM f
 
 -- | Unconditionally fail the decoder.
@@ -177,8 +182,8 @@ withDecoder decoder f = decoder >>> liftDecodeM f
 --     else returnA -< ()
 --   returnA -< x
 -- @
-fail :: forall b o. Decoder o Text b
-fail = Decoder (SchemaOr []) (Trans.lift . failM)
+fail :: forall b o. DecodeArrow o Text b
+fail = DecodeArrow (SchemaOr []) (Trans.lift . failM)
 
 -- | Debug the current state of the object being decoded.
 --
@@ -193,8 +198,8 @@ fail = Decoder (SchemaOr []) (Trans.lift . failM)
 --   KDL.debug -< ()    -- Node{entries = []}
 --   returnA -< (x, y)
 -- @
-debug :: forall o a. (Show o) => Decoder o a ()
+debug :: forall o a. (Show o) => DecodeArrow o a ()
 debug =
-  Decoder (SchemaAnd []) $ \_ -> do
+  DecodeArrow (SchemaAnd []) $ \_ -> do
     o <- StateT.gets (.object)
     traceM $ "[kdl-hs] DEBUG: " ++ show o

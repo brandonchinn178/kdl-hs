@@ -21,5 +21,5 @@ import Prelude hiding (any, fail, null)
 
 -- | Same as 'KDL.Decoder.Arrow.fail', except a more ergonomic signature
 -- for use in do-notation.
-fail :: forall a o. Text -> Decoder o () a
+fail :: forall a o. Text -> Decoder o a
 fail msg = arr (\() -> msg) >>> Arrow.fail

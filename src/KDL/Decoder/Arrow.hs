@@ -24,6 +24,7 @@ module KDL.Decoder.Arrow (
 
   -- * NodeList
   NodeListDecoder,
+  NodeListDecodeArrow,
   node,
   remainingNodes,
   argAt,
@@ -48,6 +49,7 @@ module KDL.Decoder.Arrow (
 
   -- * Node
   NodeDecoder,
+  NodeDecodeArrow,
   DecodeNode (..),
   arg,
   prop,
@@ -66,6 +68,7 @@ module KDL.Decoder.Arrow (
 
   -- * Value
   ValueDecoder,
+  ValueDecodeArrow,
   DecodeValue (..),
   any,
   text,
@@ -106,7 +109,7 @@ import Data.Typeable (Typeable, typeRep)
 import Data.Word (Word16, Word32, Word64, Word8)
 import GHC.Int (Int16, Int32, Int8)
 import KDL.Decoder.Internal.DecodeM
-import KDL.Decoder.Internal.Monad
+import KDL.Decoder.Internal.Decoder
 import KDL.Decoder.Schema (
   Schema (..),
   SchemaItem (..),
@@ -152,14 +155,14 @@ decodeFromParseResult decoder = \case
 
 {----- Decoding Document -----}
 
-newtype DocumentDecoder a = UnsafeDocumentDecoder (NodeListDecoder () a)
+newtype DocumentDecoder a = UnsafeDocumentDecoder (NodeListDecoder a)
 
 -- | Finalize a 'NodeListDecoder' as a 'DocumentDecoder' to use with 'decodeWith'.
 --
 -- Ensures that all nodes have been decoded (e.g. error if the user specified
 -- unrecognized nodes, or misspelled a node name). To allow unrecognized nodes,
 -- use @remainingNodes \@Node@ and ignore the result.
-document :: NodeListDecoder () a -> DocumentDecoder a
+document :: NodeListDecoder a -> DocumentDecoder a
 document decoder =
   UnsafeDocumentDecoder
     decoder
@@ -177,7 +180,8 @@ documentSchema (UnsafeDocumentDecoder decoder) = decoder.schema
 
 {----- Decoding NodeList -----}
 
-type NodeListDecoder = Decoder NodeList
+type NodeListDecoder a = NodeListDecodeArrow () a
+type NodeListDecodeArrow a b = DecodeArrow NodeList a b
 
 getNodeIndex :: Text -> DecodeState NodeList -> Int
 getNodeIndex name = Map.findWithDefault 0 name . (.history.nodesSeen)
@@ -226,7 +230,7 @@ validateNodeList = do
 --     many $ KDL.node "person" -< ()
 -- KDL.decodeWith decoder config == Right [\"Alice", \"Bob"]
 -- @
-node :: (DecodeNode a) => Text -> NodeListDecoder () a
+node :: (DecodeNode a) => Text -> NodeListDecoder a
 node name = withDecodeNode $ nodeWith' name
 
 -- | Same as 'node', except explicitly specify the 'NodeDecoder' instead of using 'DecodeNode'.
@@ -244,14 +248,14 @@ node name = withDecodeNode $ nodeWith' name
 --     many . KDL.nodeWith "person" $ KDL.arg -< ()
 -- KDL.decodeWith decoder config == Right [\"Alice", \"Bob"]
 -- @
-nodeWith :: forall a b. (Typeable b) => Text -> NodeDecoder a b -> NodeListDecoder a b
+nodeWith :: forall a b. (Typeable b) => Text -> NodeDecodeArrow a b -> NodeListDecodeArrow a b
 nodeWith name = nodeWith' name []
 
 -- | Same as 'nodeWith', except allow specifying type annotations.
-nodeWith' :: forall a b. (Typeable b) => Text -> [Text] -> NodeDecoder a b -> NodeListDecoder a b
+nodeWith' :: forall a b. (Typeable b) => Text -> [Text] -> NodeDecodeArrow a b -> NodeListDecodeArrow a b
 nodeWith' name =
   withTypedNodeDecoder $ \schema decodeNode ->
-    Decoder (SchemaOne $ NodeNamed name schema) $ \a -> do
+    DecodeArrow (SchemaOne $ NodeNamed name schema) $ \a -> do
       decodeFirstNodeWhere ((== name) . (.name.value)) (decodeNode a) >>= \case
         Just (_, b) -> pure b
         Nothing -> do
@@ -300,7 +304,7 @@ decodeFirstNodeWhere matcher decodeNode = do
 --     KDL.remainingNodes -< ()
 -- KDL.decodeWith decoder config == (Right . Map.fromList) [("build", [MyArg "pkg1", MyArg "pkg2"]), ("lint", [MyArg "pkg1"])]
 -- @
-remainingNodes :: (DecodeNode a) => NodeListDecoder () (Map Text [a])
+remainingNodes :: (DecodeNode a) => NodeListDecoder (Map Text [a])
 remainingNodes = withDecodeNode remainingNodesWith'
 
 -- | Same as 'remainingNodes', except explicitly specify the 'NodeDecoder' instead of using 'DecodeNode'
@@ -319,16 +323,16 @@ remainingNodes = withDecodeNode remainingNodesWith'
 --     KDL.remainingNodesWith $ KDL.arg -< ()
 -- KDL.decodeWith decoder config == (Right . Map.fromList) [("build", ["pkg1", "pkg2"]), ("lint", ["pkg1"])]
 -- @
-remainingNodesWith :: forall a b. (Typeable b) => NodeDecoder a b -> NodeListDecoder a (Map Text [b])
+remainingNodesWith :: forall a b. (Typeable b) => NodeDecodeArrow a b -> NodeListDecodeArrow a (Map Text [b])
 -- TODO: Detect duplicate `remainingNodes` calls and fail to build a decoder
 remainingNodesWith = remainingNodesWith' []
 
 -- | Same as 'remainingNodesWith', except allow specifying type annotations.
-remainingNodesWith' :: forall a b. (Typeable b) => [Text] -> NodeDecoder a b -> NodeListDecoder a (Map Text [b])
+remainingNodesWith' :: forall a b. (Typeable b) => [Text] -> NodeDecodeArrow a b -> NodeListDecodeArrow a (Map Text [b])
 -- TODO: Detect duplicate `remainingNodes` calls and fail to build a decoder
 remainingNodesWith' =
   withTypedNodeDecoder $ \schema decodeNode ->
-    Decoder (SchemaOne $ RemainingNodes schema) $ \a -> do
+    DecodeArrow (SchemaOne $ RemainingNodes schema) $ \a -> do
       Map.fromListWith (<>) <$> go (decodeNode a)
  where
   go decodeNode = do
@@ -355,7 +359,7 @@ remainingNodesWith' =
 --     KDL.argAt "verbose" -< ()
 -- KDL.decodeWith decoder config == Right True
 -- @
-argAt :: (DecodeValue a) => Text -> NodeListDecoder () a
+argAt :: (DecodeValue a) => Text -> NodeListDecoder a
 argAt name = withDecodeValue $ argAtWith' name
 
 -- | Same as 'argAt', except explicitly specify the 'ValueDecoder' instead of using 'DecodeValue'
@@ -372,11 +376,11 @@ argAt name = withDecodeValue $ argAtWith' name
 --     KDL.argAtWith "verbose" KDL.bool -< ()
 -- KDL.decodeWith decoder config == Right True
 -- @
-argAtWith :: forall a b. (Typeable b) => Text -> ValueDecoder a b -> NodeListDecoder a b
+argAtWith :: forall a b. (Typeable b) => Text -> ValueDecodeArrow a b -> NodeListDecodeArrow a b
 argAtWith name = argAtWith' name []
 
 -- | Same as 'argAtWith', except allow specifying type annotations.
-argAtWith' :: forall a b. (Typeable b) => Text -> [Text] -> ValueDecoder a b -> NodeListDecoder a b
+argAtWith' :: forall a b. (Typeable b) => Text -> [Text] -> ValueDecodeArrow a b -> NodeListDecodeArrow a b
 argAtWith' name typeAnns decoder = nodeWith name $ argWith' typeAnns decoder
 
 -- | A helper to decode all the arguments of the first node with the given name.
@@ -399,7 +403,7 @@ argAtWith' name typeAnns decoder = nodeWith name $ argWith' typeAnns decoder
 --     KDL.argsAt "email" -< ()
 -- KDL.decodeWith decoder config == Right ["a@example.com", "b@example.com"]
 -- @
-argsAt :: (DecodeValue a) => Text -> NodeListDecoder () [a]
+argsAt :: (DecodeValue a) => Text -> NodeListDecoder [a]
 argsAt name = withDecodeValue $ argsAtWith' name
 
 -- | Same as 'argsAt', except explicitly specify the 'ValueDecoder' instead of using 'DecodeValue'
@@ -416,11 +420,11 @@ argsAt name = withDecodeValue $ argsAtWith' name
 --     KDL.argsAtWith "email" KDL.text -< ()
 -- KDL.decodeWith decoder config == Right ["a@example.com", "b@example.com"]
 -- @
-argsAtWith :: forall a b. (Typeable b) => Text -> ValueDecoder a b -> NodeListDecoder a [b]
+argsAtWith :: forall a b. (Typeable b) => Text -> ValueDecodeArrow a b -> NodeListDecodeArrow a [b]
 argsAtWith name = argsAtWith' name []
 
 -- | Same as 'argsAtWith', except allow specifying type annotations.
-argsAtWith' :: forall a b. (Typeable b) => Text -> [Text] -> ValueDecoder a b -> NodeListDecoder a [b]
+argsAtWith' :: forall a b. (Typeable b) => Text -> [Text] -> ValueDecodeArrow a b -> NodeListDecodeArrow a [b]
 argsAtWith' name typeAnns decoder = option [] $ nodeWith name $ many $ argWith' typeAnns decoder
 
 -- | A helper for decoding child values in a list following the KDL convention of being named @"-"@.
@@ -442,7 +446,7 @@ argsAtWith' name typeAnns decoder = option [] $ nodeWith name $ many $ argWith' 
 --     KDL.dashChildrenAt "attendees" -< ()
 -- KDL.decodeWith decoder config == Right [\"Alice", \"Bob"]
 -- @
-dashChildrenAt :: (DecodeValue a) => Text -> NodeListDecoder () [a]
+dashChildrenAt :: (DecodeValue a) => Text -> NodeListDecoder [a]
 dashChildrenAt name = withDecodeValue $ dashChildrenAtWith' name
 
 -- | Same as 'dashChildrenAt', except explicitly specify the 'ValueDecoder' instead of using 'DecodeValue'
@@ -462,11 +466,11 @@ dashChildrenAt name = withDecodeValue $ dashChildrenAtWith' name
 --     KDL.dashChildrenAtWith "attendees" $ KDL.text -< ()
 -- KDL.decodeWith decoder config == Right [\"Alice", \"Bob"]
 -- @
-dashChildrenAtWith :: forall a b. (Typeable b) => Text -> ValueDecoder a b -> NodeListDecoder a [b]
+dashChildrenAtWith :: forall a b. (Typeable b) => Text -> ValueDecodeArrow a b -> NodeListDecodeArrow a [b]
 dashChildrenAtWith name = dashChildrenAtWith' name []
 
 -- | Same as 'dashChildrenAtWith', except allow specifying type annotations.
-dashChildrenAtWith' :: forall a b. (Typeable b) => Text -> [Text] -> ValueDecoder a b -> NodeListDecoder a [b]
+dashChildrenAtWith' :: forall a b. (Typeable b) => Text -> [Text] -> ValueDecodeArrow a b -> NodeListDecodeArrow a [b]
 dashChildrenAtWith' name typeAnns decoder = dashNodesAtWith name $ argWith' typeAnns decoder
 
 -- | A helper for decoding child nodes in a list following the KDL convention of being named @"-"@.
@@ -493,7 +497,7 @@ dashChildrenAtWith' name typeAnns decoder = dashNodesAtWith name $ argWith' type
 --     KDL.dashNodesAt "attendees" -< ()
 -- KDL.decodeWith decoder config == Right [Attendee \"Alice", Attendee \"Bob"]
 -- @
-dashNodesAt :: (DecodeNode a) => Text -> NodeListDecoder () [a]
+dashNodesAt :: (DecodeNode a) => Text -> NodeListDecoder [a]
 dashNodesAt name = withDecodeNode $ \_ decoder -> dashNodesAtWith name decoder
 
 -- | Same as 'dashChildrenAt', except explicitly specify the 'NodeDecoder' instead of using 'DecodeNode'
@@ -513,7 +517,7 @@ dashNodesAt name = withDecodeNode $ \_ decoder -> dashNodesAtWith name decoder
 --     KDL.dashNodesAtWith "attendees" KDL.arg -< ()
 -- KDL.decodeWith decoder config == Right ["Alice", "Bob"]
 -- @
-dashNodesAtWith :: forall a b. (Typeable b) => Text -> NodeDecoder a b -> NodeListDecoder a [b]
+dashNodesAtWith :: forall a b. (Typeable b) => Text -> NodeDecodeArrow a b -> NodeListDecodeArrow a [b]
 dashNodesAtWith name decoder =
   option [] . nodeWith name $
     children $
@@ -532,14 +536,14 @@ validateAnn typeAnns mGivenAnn =
 
 {----- Decoding Node -----}
 
-withDecodeNode :: forall a r. (DecodeNode a) => ([Text] -> NodeDecoder () a -> r) -> r
+withDecodeNode :: forall a r. (DecodeNode a) => ([Text] -> NodeDecoder a -> r) -> r
 withDecodeNode k = k (validNodeTypeAnns (Proxy @a)) nodeDecoder
 
 withTypedNodeDecoder ::
   forall a b r.
   (Typeable b) =>
   (TypedNodeSchema -> (a -> Node -> DecodeM b) -> r) ->
-  ([Text] -> NodeDecoder a b -> r)
+  ([Text] -> NodeDecodeArrow a b -> r)
 withTypedNodeDecoder k typeAnns decoder = k schema decodeNode
  where
   schema =
@@ -578,7 +582,8 @@ validateNode = do
       childrenHistory <- StateT.gets (.history.childrenHistory)
       Trans.lift . runDecodeStateM children_ childrenHistory $ validateNodeList
 
-type NodeDecoder = Decoder Node
+type NodeDecoder a = NodeDecodeArrow () a
+type NodeDecodeArrow a b = DecodeArrow Node a b
 
 getArgIndex :: DecodeState Node -> Int
 getArgIndex = (.history.argsSeen)
@@ -601,11 +606,11 @@ class (Typeable a) => DecodeNode a where
   validNodeTypeAnns _ = []
 
   -- | Decode a t'Node' to a value of type @a@
-  nodeDecoder :: NodeDecoder () a
+  nodeDecoder :: NodeDecoder a
 
 instance DecodeNode Node where
   nodeDecoder =
-    Decoder SchemaUnknown $ \() -> do
+    DecodeArrow SchemaUnknown $ \() -> do
       node_ <- StateT.gets (.object)
       StateT.modify $ \s -> s{object = emptyNode node_.name}
       pure node_
@@ -637,7 +642,7 @@ instance DecodeNode Node where
 --     returnA -< (name, vals)
 -- KDL.decodeWith decoder config == Right (\"Alice", [1, 2, 3])
 -- @
-arg :: (DecodeValue a) => NodeDecoder () a
+arg :: (DecodeValue a) => NodeDecoder a
 arg = withDecodeValue argWith'
 
 -- | Same as 'arg', except explicitly specify the 'ValueDecoder' instead of using 'DecodeValue'
@@ -658,14 +663,14 @@ arg = withDecodeValue argWith'
 --     returnA -< (name, vals)
 -- KDL.decodeWith decoder config == Right (\"ALICE", ["1", "2", "3"])
 -- @
-argWith :: forall a b. (Typeable b) => ValueDecoder a b -> NodeDecoder a b
+argWith :: forall a b. (Typeable b) => ValueDecodeArrow a b -> NodeDecodeArrow a b
 argWith = argWith' []
 
 -- | Same as 'argWith', except allow specifying type annotations.
-argWith' :: forall a b. (Typeable b) => [Text] -> ValueDecoder a b -> NodeDecoder a b
+argWith' :: forall a b. (Typeable b) => [Text] -> ValueDecodeArrow a b -> NodeDecodeArrow a b
 argWith' =
   withTypedValueDecoder $ \schema decodeValue ->
-    Decoder (SchemaOne $ NodeArg schema) $ \a -> do
+    DecodeArrow (SchemaOne $ NodeArg schema) $ \a -> do
       index <- StateT.gets getArgIndex
 
       entries <- StateT.gets (.object.entries)
@@ -697,7 +702,7 @@ argWith' =
 --     KDL.nodeWith "my-node" $ KDL.prop @Int "a" -< ()
 -- KDL.decodeWith decoder config == Right 3
 -- @
-prop :: (DecodeValue a) => Text -> NodeDecoder () a
+prop :: (DecodeValue a) => Text -> NodeDecoder a
 prop name = withDecodeValue $ propWith' name
 
 -- | Same as 'prop', except explicitly specify the 'ValueDecoder' instead of using 'DecodeValue'
@@ -714,14 +719,14 @@ prop name = withDecodeValue $ propWith' name
 --     KDL.nodeWith "my-node" $ KDL.propWith "a" $ show \<$> KDL.number -< ()
 -- KDL.decodeWith decoder config == Right "3.0"
 -- @
-propWith :: forall a b. (Typeable b) => Text -> ValueDecoder a b -> NodeDecoder a b
+propWith :: forall a b. (Typeable b) => Text -> ValueDecodeArrow a b -> NodeDecodeArrow a b
 propWith name = propWith' name []
 
 -- | Same as 'propWith', except allow specifying type annotations.
-propWith' :: forall a b. (Typeable b) => Text -> [Text] -> ValueDecoder a b -> NodeDecoder a b
+propWith' :: forall a b. (Typeable b) => Text -> [Text] -> ValueDecodeArrow a b -> NodeDecodeArrow a b
 propWith' name =
   withTypedValueDecoder $ \schema decodeValue ->
-    Decoder (SchemaOne $ NodeProp name schema) $ \a -> do
+    DecodeArrow (SchemaOne $ NodeProp name schema) $ \a -> do
       decodeOnePropWhere (== name) (decodeValue a)
         >>= maybe (Trans.lift $ decodeThrow DecodeError_ExpectedProp{name = name}) (pure . snd)
 
@@ -765,7 +770,7 @@ decodeOnePropWhere matcher decodeValue = do
 --     KDL.nodeWith "my-node" $ KDL.remainingProps @Int -< ()
 -- KDL.decodeWith decoder config == (Right . Map.fromList) [("a", 3), ("b", 2)]
 -- @
-remainingProps :: (DecodeValue a) => NodeDecoder () (Map Text a)
+remainingProps :: (DecodeValue a) => NodeDecoder (Map Text a)
 remainingProps = withDecodeValue remainingPropsWith'
 
 -- | Same as 'remainingProps', except explicitly specify the 'ValueDecoder' instead of using 'DecodeValue'
@@ -782,14 +787,14 @@ remainingProps = withDecodeValue remainingPropsWith'
 --     KDL.nodeWith "my-node" $ KDL.remainingPropsWith $ show \<$> KDL.number -< ()
 -- KDL.decodeWith decoder config == (Right . Map.fromList) [("a", "3.0"), ("b", "2.0")]
 -- @
-remainingPropsWith :: forall a b. (Typeable b) => ValueDecoder a b -> NodeDecoder a (Map Text b)
+remainingPropsWith :: forall a b. (Typeable b) => ValueDecodeArrow a b -> NodeDecodeArrow a (Map Text b)
 remainingPropsWith = remainingPropsWith' []
 
 -- | Same as 'remainingPropsWith', except allow specifying type annotations.
-remainingPropsWith' :: forall a b. (Typeable b) => [Text] -> ValueDecoder a b -> NodeDecoder a (Map Text b)
+remainingPropsWith' :: forall a b. (Typeable b) => [Text] -> ValueDecodeArrow a b -> NodeDecodeArrow a (Map Text b)
 remainingPropsWith' =
   withTypedValueDecoder $ \schema decodeValue ->
-    Decoder (SchemaOne $ NodeRemainingProps schema) $ \a -> do
+    DecodeArrow (SchemaOne $ NodeRemainingProps schema) $ \a -> do
       Map.fromList <$> go (decodeValue a)
  where
   go decodeValue =
@@ -819,9 +824,9 @@ remainingPropsWith' =
 --     returnA -< Person{..}
 -- KDL.decodeWith decoder config == Right Person{name = \"Alice", email = "alice\@example.com"}
 -- @
-children :: forall a b. NodeListDecoder a b -> NodeDecoder a b
+children :: forall a b. NodeListDecodeArrow a b -> NodeDecodeArrow a b
 children decoder =
-  Decoder (SchemaOne $ NodeChildren decoder.schema) $ \a -> do
+  DecodeArrow (SchemaOne $ NodeChildren decoder.schema) $ \a -> do
     mChildren <- StateT.gets (.object.children)
     childrenHistory <- StateT.gets (.history.childrenHistory)
     (b, decodeState) <-
@@ -842,14 +847,14 @@ children decoder =
 
 {----- Decoding ValueData -----}
 
-withDecodeValue :: forall a r. (DecodeValue a) => ([Text] -> ValueDecoder () a -> r) -> r
+withDecodeValue :: forall a r. (DecodeValue a) => ([Text] -> ValueDecoder a -> r) -> r
 withDecodeValue k = k (validValueTypeAnns (Proxy @a)) valueDecoder
 
 withTypedValueDecoder ::
   forall a b r.
   (Typeable b) =>
   (TypedValueSchema -> (a -> Value -> DecodeM b) -> r) ->
-  ([Text] -> ValueDecoder a b -> r)
+  ([Text] -> ValueDecodeArrow a b -> r)
 withTypedValueDecoder k typeAnns decoder = k schema decodeValue
  where
   schema =
@@ -864,7 +869,8 @@ withTypedValueDecoder k typeAnns decoder = k schema decodeValue
       -- TODO: add typeHint to Context
       decoder.run a
 
-type ValueDecoder = Decoder Value
+type ValueDecoder a = ValueDecodeArrow () a
+type ValueDecodeArrow a b = DecodeArrow Value a b
 
 -- | The type class for specifying how a type should be decoded from a KDL value.
 class (Typeable a) => DecodeValue a where
@@ -890,7 +896,7 @@ class (Typeable a) => DecodeValue a where
   --   * 'oneOf'
   --   * 'withDecoder'
   --   * 'failM'
-  valueDecoder :: ValueDecoder () a
+  valueDecoder :: ValueDecoder a
 
 instance DecodeValue Value where
   valueDecoder = any
@@ -912,7 +918,7 @@ instance (DecodeValue a, DecodeValue b) => DecodeValue (Either a b) where
   validValueTypeAnns _ = validValueTypeAnns (Proxy @a) <> validValueTypeAnns (Proxy @b)
   valueDecoder = oneOf [Left <$> valueDecoder, Right <$> valueDecoder]
 
-decodeInt :: (Integral b, Bounded b) => ValueDecoder a b
+decodeInt :: (Integral b, Bounded b) => DecodeArrow Value a b
 decodeInt = withDecoder number $ \x -> do
   unless (Scientific.isInteger x) $ do
     failM $ "Expected integer, got: " <> (Text.pack . show) x
@@ -976,7 +982,7 @@ instance DecodeValue Natural where
       failM $ "Expected a non-negative number, got: " <> (Text.pack . show) x
     pure $ fromIntegral x
 
-decodeRealFloat :: (RealFloat b) => ValueDecoder a b
+decodeRealFloat :: (RealFloat b) => DecodeArrow Value a b
 decodeRealFloat = withDecoder number $ \x -> do
   either (\_ -> failM $ "Number is too small or too large: " <> (Text.pack . show) x) pure $
     Scientific.toBoundedRealFloat x
@@ -998,33 +1004,33 @@ instance DecodeValue Rational where
       Right _ -> pure $ toRational x
       Left _ -> failM $ "Number is too small or too large: " <> (Text.pack . show) x
 
-valueDataDecoderPrim :: SchemaOf Value -> (Value -> DecodeM b) -> ValueDecoder a b
-valueDataDecoderPrim schema f = Decoder schema $ \_ -> Trans.lift . f =<< StateT.gets (.object)
+valueDataDecoderPrim :: SchemaOf Value -> (Value -> DecodeM b) -> DecodeArrow Value a b
+valueDataDecoderPrim schema f = DecodeArrow schema $ \_ -> Trans.lift . f =<< StateT.gets (.object)
 
 -- | Decode any value, without any possibility of failure.
-any :: ValueDecoder a Value
+any :: DecodeArrow Value a Value
 any = valueDataDecoderPrim (SchemaOr $ map SchemaOne [minBound .. maxBound]) pure
 
 -- | Decode a KDL text value.
-text :: ValueDecoder a Text
+text :: DecodeArrow Value a Text
 text = valueDataDecoderPrim (SchemaOne TextSchema) $ \case
   Value{data_ = Text s} -> pure s
   v -> decodeThrow DecodeError_ValueDecodeFail{expectedType = "text", value = v}
 
 -- | Decode a KDL number value.
-number :: ValueDecoder a Scientific
+number :: DecodeArrow Value a Scientific
 number = valueDataDecoderPrim (SchemaOne NumberSchema) $ \case
   Value{data_ = Number x} -> pure x
   v -> decodeThrow DecodeError_ValueDecodeFail{expectedType = "number", value = v}
 
 -- | Decode a KDL bool value.
-bool :: ValueDecoder a Bool
+bool :: DecodeArrow Value a Bool
 bool = valueDataDecoderPrim (SchemaOne BoolSchema) $ \case
   Value{data_ = Bool x} -> pure x
   v -> decodeThrow DecodeError_ValueDecodeFail{expectedType = "bool", value = v}
 
 -- | Decode a KDL null value.
-null :: ValueDecoder a ()
+null :: DecodeArrow Value a ()
 null = valueDataDecoderPrim (SchemaOne NullSchema) $ \case
   Value{data_ = Null} -> pure ()
   v -> decodeThrow DecodeError_ValueDecodeFail{expectedType = "null", value = v}

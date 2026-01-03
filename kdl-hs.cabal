@@ -28,8 +28,8 @@ library
     KDL.Decoder
     KDL.Decoder.Arrow
     KDL.Decoder.Internal.DecodeM
+    KDL.Decoder.Internal.Decoder
     KDL.Decoder.Internal.Error
-    KDL.Decoder.Internal.Monad
     KDL.Decoder.Monad
     KDL.Decoder.Schema
     KDL.Parser
