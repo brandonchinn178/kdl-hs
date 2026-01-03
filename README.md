@@ -1,5 +1,8 @@
 # kdl-hs
 
+[![GitHub Actions](https://img.shields.io/github/actions/workflow/status/brandonchinn178/kdl-hs/ci.yml?branch=main)](https://github.com/brandonchinn178/kdl-hs/actions?query=branch%3Amain)
+[![](https://img.shields.io/hackage/v/kdl-hs)](https://hackage.haskell.org/package/kdl-hs)
+
 `kdl-hs` can parse and manage [KDL configuration files](https://kdl.dev).
 
 ## Quickstart

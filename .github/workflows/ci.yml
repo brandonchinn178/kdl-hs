@@ -1,0 +1,98 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_call:
+
+jobs:
+  build_and_test:
+    strategy:
+      matrix:
+        ghc_version:
+          - '9.8'
+          - '9.10'
+          - '9.12'
+          # - '9.14'
+        include:
+          - ghc_version: '9.8.1'
+            oldest: true
+
+    name: build_and_test (${{ matrix.ghc_version }})
+    runs-on: ubuntu-latest
+
+    steps:
+      -
+        uses: actions/checkout@v3
+      -
+        id: setup
+        name: Set up GHC ${{ matrix.ghc_version }}
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: ${{ matrix.ghc_version }}
+      -
+        name: Configure the build
+        run:
+          cabal configure
+            --enable-test
+            --test-show-details=streaming
+      -
+        if: ${{ matrix.oldest }}
+        name: Use oldest dependencies
+        run: cabal configure --enable-append --prefer-oldest
+      -
+        name: Get build plan
+        run: cabal build --dry-run
+      -
+        name: Get current month to clear cache
+        run: echo "CURR_MONTH=$(date +%B)" | tee -a "$GITHUB_ENV"
+      -
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: ${{ runner.os }}-cabal-cache-${{ env.CURR_MONTH }}-${{ matrix.ghc_version }}-${{ hashFiles('**/plan.json') }}
+          restore-keys: |
+               ${{ runner.os }}-cabal-cache-${{ env.CURR_MONTH }}-${{ matrix.ghc_version }}-
+      -
+        name: Build + Test
+        run: cabal test
+
+  lint:
+    runs-on: ubuntu-latest
+    env:
+      FOURMOLU_VERSION: '0.19.0.1'
+    steps:
+      -
+        uses: actions/checkout@v3
+      -
+        name: Install fourmolu
+        run: |
+          curl -sSL \
+            "https://github.com/fourmolu/fourmolu/releases/download/v${FOURMOLU_VERSION}/fourmolu-${FOURMOLU_VERSION}-linux-x86_64" \
+            -o /usr/local/bin/fourmolu
+          chmod +x /usr/local/bin/fourmolu
+      -
+        name: Run fourmolu
+        run: fourmolu -m check .
+
+  build_sdist:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        uses: actions/checkout@v3
+      -
+        id: setup
+        name: Set up GHC
+        uses: haskell-actions/setup@v2
+      -
+        name: Strip unreleased section from CHANGELOG
+        run: sed -i -n '/^## Unreleased/d; /^## /,$p' CHANGELOG.md
+      -
+        name: Create sdist bundle
+        run: cabal sdist --output-directory=.
+      -
+        uses: actions/upload-artifact@v4
+        with:
+          name: kdl-sdist
+          path: kdl-*.tar.gz

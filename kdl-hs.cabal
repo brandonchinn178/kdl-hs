@@ -1,7 +1,7 @@
 cabal-version: 3.0
 
 name: kdl-hs
-version: 0.0.0
+version: 0.1.0
 synopsis: KDL language parser and API
 description: KDL language parser and API.
 homepage: https://github.com/brandonchinn178/kdl-hs#readme
@@ -14,6 +14,7 @@ category: Text
 build-type: Simple
 extra-source-files:
   README.md
+  CHANGELOG.md
 
 source-repository head
   type: git
@@ -41,7 +42,7 @@ library
       base < 5
     , containers
     , megaparsec
-    , prettyprinter
+    , prettyprinter >= 1.7.0
     , scientific
     , text
     , transformers
