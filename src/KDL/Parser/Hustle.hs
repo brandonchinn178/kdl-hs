@@ -1,7 +1,7 @@
 {- FOURMOLU_DISABLE -}
 
 {- | Vendered from https://github.com/fuzzypixelz/hustle -}
-module Data.KDL.Parser.Hustle
+module KDL.Parser.Hustle
   ( Parser
   , Document(..)
   , Node(..)
@@ -14,9 +14,9 @@ module Data.KDL.Parser.Hustle
   , errorBundlePretty
   ) where
 
-import           Data.KDL.Parser.Hustle.Formatter ( Pretty(pretty) )
-import           Data.KDL.Parser.Hustle.Parser  ( document )
-import           Data.KDL.Parser.Hustle.Types   ( Document(..)
+import           KDL.Parser.Hustle.Formatter ( Pretty(pretty) )
+import           KDL.Parser.Hustle.Parser  ( document )
+import           KDL.Parser.Hustle.Types   ( Document(..)
                                                 , Identifier(..)
                                                 , Node(..)
                                                 , Parser

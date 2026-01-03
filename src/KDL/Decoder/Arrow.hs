@@ -5,14 +5,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Data.KDL.Decoder.Arrow (
+module KDL.Decoder.Arrow (
   decodeWith,
   decodeFileWith,
   decodeDocWith,
 
   -- * Decoder
   Decoder,
-  module Data.KDL.Decoder.Internal.DecodeM,
+  module KDL.Decoder.Internal.DecodeM,
   fail,
   withDecoder,
   debug,
@@ -91,26 +91,6 @@ import Control.Monad.Trans.State.Strict (StateT)
 import Control.Monad.Trans.State.Strict qualified as StateT
 import Data.Bits (finiteBitSize)
 import Data.Int (Int64)
-import Data.KDL.Decoder.Internal.DecodeM
-import Data.KDL.Decoder.Internal.Monad
-import Data.KDL.Decoder.Schema (
-  Schema (..),
-  SchemaItem (..),
-  SchemaOf,
-  TypedNodeSchema (..),
-  TypedValueSchema (..),
- )
-import Data.KDL.Parser (parse, parseFile)
-import Data.KDL.Types (
-  Ann (..),
-  Document,
-  Entry (..),
-  Identifier (..),
-  Node (..),
-  NodeList (..),
-  Value (..),
-  ValueData (..),
- )
 import Data.List (partition)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict (Map)
@@ -125,6 +105,26 @@ import Data.Text qualified as Text
 import Data.Typeable (Typeable, typeRep)
 import Data.Word (Word16, Word32, Word64, Word8)
 import GHC.Int (Int16, Int32, Int8)
+import KDL.Decoder.Internal.DecodeM
+import KDL.Decoder.Internal.Monad
+import KDL.Decoder.Schema (
+  Schema (..),
+  SchemaItem (..),
+  SchemaOf,
+  TypedNodeSchema (..),
+  TypedValueSchema (..),
+ )
+import KDL.Parser (parse, parseFile)
+import KDL.Types (
+  Ann (..),
+  Document,
+  Entry (..),
+  Identifier (..),
+  Node (..),
+  NodeList (..),
+  Value (..),
+  ValueData (..),
+ )
 import Numeric.Natural (Natural)
 import Prelude hiding (any, fail, null)
 import Prelude qualified

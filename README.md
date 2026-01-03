@@ -24,7 +24,7 @@ package {
 Parse it with `kdl-hs`:
 
 ```hs
-import Data.KDL qualified as KDL
+import KDL qualified
 
 main :: IO ()
 main = do

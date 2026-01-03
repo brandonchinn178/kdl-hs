@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 {- | Vendered from https://github.com/fuzzypixelz/hustle -}
-module Data.KDL.Parser.Hustle.Internal where
+module KDL.Parser.Hustle.Internal where
 
 import           Control.Monad                  ( void )
 import           Data.Char                      ( digitToInt
@@ -13,7 +13,7 @@ import           Data.Scientific                ( Scientific )
 import qualified Data.Scientific               as Sci
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as T
-import           Data.KDL.Parser.Hustle.Types   ( Parser )
+import           KDL.Parser.Hustle.Types   ( Parser )
 import           Text.Megaparsec                ( (<|>)
                                                 , MonadParsec
                                                   ( eof

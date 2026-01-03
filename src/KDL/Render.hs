@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Data.KDL.Render (
+module KDL.Render (
   render,
 
   -- * Rendering components
@@ -14,7 +14,9 @@ module Data.KDL.Render (
 ) where
 
 import Data.Char (isDigit)
-import Data.KDL.Types (
+import Data.Text (Text)
+import Data.Text qualified as Text
+import KDL.Types (
   Ann (..),
   AnnFormat (..),
   Document,
@@ -24,8 +26,6 @@ import Data.KDL.Types (
   ValueData (..),
   ValueFormat (..),
  )
-import Data.Text (Text)
-import Data.Text qualified as Text
 
 -- TODO: Implement render after parsing Document with formatting information
 render :: Document -> Text

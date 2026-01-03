@@ -1,6 +1,6 @@
 {- FOURMOLU_DISABLE -}
 {- | Vendered from https://github.com/fuzzypixelz/hustle -}
-module Data.KDL.Parser.Hustle.Types
+module KDL.Parser.Hustle.Types
   ( Parser
   , Document(..)
   , Content(..)

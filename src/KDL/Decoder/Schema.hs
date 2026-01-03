@@ -2,7 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Data.KDL.Decoder.Schema (
+module KDL.Decoder.Schema (
   SchemaOf,
   Schema (..),
   SchemaItem (..),
@@ -12,13 +12,13 @@ module Data.KDL.Decoder.Schema (
   schemaAlt,
 ) where
 
-import Data.KDL.Types (
+import Data.Text (Text)
+import Data.Typeable (TypeRep)
+import KDL.Types (
   Node,
   NodeList,
   Value,
  )
-import Data.Text (Text)
-import Data.Typeable (TypeRep)
 
 type SchemaOf o = Schema (SchemaItem o)
 

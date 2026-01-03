@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Data.KDL.Decoder.Internal.Monad (
+module KDL.Decoder.Internal.Monad (
   -- * Decoder
   Decoder (..),
   liftDecodeM,
@@ -29,20 +29,20 @@ import Control.Monad ((>=>))
 import Control.Monad.Trans.Class qualified as Trans
 import Control.Monad.Trans.State.Strict (StateT)
 import Control.Monad.Trans.State.Strict qualified as StateT
-import Data.KDL.Decoder.Internal.DecodeM
-import Data.KDL.Decoder.Schema (
-  Schema (..),
-  SchemaOf,
-  schemaAlt,
-  schemaJoin,
- )
-import Data.KDL.Types (Identifier, Node, NodeList, Value)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Debug.Trace (traceM)
+import KDL.Decoder.Internal.DecodeM
+import KDL.Decoder.Schema (
+  Schema (..),
+  SchemaOf,
+  schemaAlt,
+  schemaJoin,
+ )
+import KDL.Types (Identifier, Node, NodeList, Value)
 import Prelude hiding (any, fail, null)
 
 class HasDecodeHistory o where

@@ -1,13 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Data.KDL.Parser (
+module KDL.Parser (
   parse,
   parseFile,
 ) where
 
-import Data.KDL.Parser.Hustle qualified as Hustle
-import Data.KDL.Types (
+import Data.Map qualified as Map
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
+import KDL.Parser.Hustle qualified as Hustle
+import KDL.Types (
   Ann (..),
   Document,
   Entry (..),
@@ -18,10 +22,6 @@ import Data.KDL.Types (
   ValueData (..),
   ValueFormat (..),
  )
-import Data.Map qualified as Map
-import Data.Text (Text)
-import Data.Text qualified as Text
-import Data.Text.IO qualified as Text
 
 -- TODO: Implement our own parser that implements the v2.0.0 spec + preserves formatting and comments
 parse :: Text -> Either Text Document

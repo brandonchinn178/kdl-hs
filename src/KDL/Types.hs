@@ -12,7 +12,7 @@ This module enables @-XNoFieldSelectors@, so none of the fields create implicit
 selector functions. Instead, use @-XOverloadedRecordDot@, or the functions
 provided by this module.
 -}
-module Data.KDL.Types (
+module KDL.Types (
   -- * Document
   Document,
   docNodes,

@@ -4,7 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
-module Data.KDL.Decoder.Internal.Error (
+module KDL.Decoder.Internal.Error (
   DecodeError (..),
   BaseDecodeError (..),
   Context,
@@ -12,17 +12,17 @@ module Data.KDL.Decoder.Internal.Error (
   renderDecodeError,
 ) where
 
-import Data.KDL.Render (
-  renderIdentifier,
-  renderValue,
- )
-import Data.KDL.Types (
-  Identifier,
-  Value,
- )
 import Data.Map qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
+import KDL.Render (
+  renderIdentifier,
+  renderValue,
+ )
+import KDL.Types (
+  Identifier,
+  Value,
+ )
 
 data DecodeError = DecodeError [(Context, BaseDecodeError)]
   deriving (Show, Eq)

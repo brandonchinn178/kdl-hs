@@ -2,9 +2,9 @@
 This module defines the Arrow interface for decoding a KDL document. Intended to
 be imported qualified as:
 
-> import Data.KDL.Arrow qualified as KDL
+> import KDL.Arrow qualified as KDL
 
-For most use-cases, the Monad interface exported by "Data.KDL" is sufficient. You
+For most use-cases, the Monad interface exported by "KDL" is sufficient. You
 may wish to use the Arrow interface if you would like to statically analyze a
 decoder's schema, e.g. to generate documentation.
 
@@ -29,7 +29,7 @@ Parse it with:
 @
 {\-# LANGUAGE Arrows #-\}
 
-import Data.KDL.Decoder.Arrow qualified as KDL
+import KDL.Decoder.Arrow qualified as KDL
 
 main :: IO ()
 main = do
@@ -67,12 +67,12 @@ instance KDL.DecodeNode Dep where
     returnA -< Dep{..}
 @
 -}
-module Data.KDL.Arrow (
+module KDL.Arrow (
   module X,
 ) where
 
-import Data.KDL.Decoder.Arrow as X
-import Data.KDL.Decoder.Schema as X
-import Data.KDL.Parser as X
-import Data.KDL.Render as X
-import Data.KDL.Types as X
+import KDL.Decoder.Arrow as X
+import KDL.Decoder.Schema as X
+import KDL.Parser as X
+import KDL.Render as X
+import KDL.Types as X

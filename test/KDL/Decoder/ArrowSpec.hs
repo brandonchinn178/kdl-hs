@@ -1,11 +1,19 @@
+{-# LANGUAGE Arrows #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Data.KDL.Decoder.MonadSpec (spec) where
+module KDL.Decoder.ArrowSpec (spec) where
 
+import Control.Arrow (returnA)
 import Control.Monad (forM_, unless, when)
-import Data.KDL qualified as KDL
-import Data.KDL.Types (
+import Data.Int (Int64)
+import Data.Map qualified as Map
+import Data.Proxy (Proxy (..))
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Typeable (typeRep)
+import KDL.Arrow qualified as KDL
+import KDL.Types (
   Entry (..),
   Identifier (..),
   Node (..),
@@ -13,9 +21,6 @@ import Data.KDL.Types (
   Value (..),
   ValueData (..),
  )
-import Data.Map qualified as Map
-import Data.Text (Text)
-import Data.Text qualified as Text
 import Skeletest
 import Skeletest.Predicate qualified as P
 
@@ -27,6 +32,7 @@ decodeErrorMsg msgs = P.left (KDL.renderDecodeError P.>>> P.eq msg)
 spec :: Spec
 spec = do
   apiSpec
+  schemaSpec
   decodeNodeSpec
   decodeValueSpec
 
@@ -79,8 +85,8 @@ apiSpec = do
     describe "node" $ do
       it "decodes a node" $ do
         let config = "foo 1.0"
-            decoder = KDL.document $ do
-              KDL.node "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.node "foo" -< ()
             expected =
               Node
                 { ann = Nothing
@@ -99,8 +105,8 @@ apiSpec = do
 
       it "decodes multiple nodes" $ do
         let config = "foo; foo"
-            decoder = KDL.document $ do
-              KDL.many $ KDL.node "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.many $ KDL.node "foo" -< ()
             expected = [fooNode, fooNode]
             fooNode =
               Node
@@ -114,10 +120,10 @@ apiSpec = do
 
       it "decodes nodes in any order" $ do
         let config = "foo; bar"
-            decoder = KDL.document $ do
-              bar <- KDL.node "bar"
-              foo <- KDL.node "foo"
-              pure (bar, foo)
+            decoder = KDL.document $ proc () -> do
+              bar <- KDL.node "bar" -< ()
+              foo <- KDL.node "foo" -< ()
+              returnA -< (bar, foo)
             expected = (node "bar", node "foo")
             node name =
               Node
@@ -131,10 +137,10 @@ apiSpec = do
 
       it "fails when not enough nodes" $ do
         let config = "foo"
-            decoder = KDL.document $ do
-              foo1 <- KDL.node @Node "foo"
-              foo2 <- KDL.node @Node "foo"
-              pure (foo1, foo2)
+            decoder = KDL.document $ proc () -> do
+              foo1 <- KDL.node @Node "foo" -< ()
+              foo2 <- KDL.node @Node "foo" -< ()
+              returnA -< (foo1, foo2)
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: <root>"
@@ -145,20 +151,20 @@ apiSpec = do
     describe "nodeWith" $ do
       it "decodes a node" $ do
         let config = "foo 1.0 { hello \"world\"; }"
-            decodeFoo = do
-              arg <- KDL.arg @Int
-              child <- KDL.children $ KDL.argAt @Text "hello"
-              pure (arg, child)
-            decoder = KDL.document $ do
-              KDL.nodeWith "foo" decodeFoo
+            decodeFoo = proc () -> do
+              arg <- KDL.arg @Int -< ()
+              child <- KDL.children $ KDL.argAt @Text "hello" -< ()
+              returnA -< (arg, child)
+            decoder = KDL.document $ proc () -> do
+              KDL.nodeWith "foo" decodeFoo -< ()
         KDL.decodeWith decoder config `shouldBe` Right (1, "world")
 
       it "fails when node fails to parse" $ do
         let config = "foo 1.0"
-            decodeFoo = do
-              KDL.arg @Text
-            decoder = KDL.document $ do
-              KDL.nodeWith "foo" decodeFoo
+            decodeFoo = proc () -> do
+              KDL.arg @Text -< ()
+            decoder = KDL.document $ proc () -> do
+              KDL.nodeWith "foo" decodeFoo -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > arg #0"
@@ -175,8 +181,8 @@ apiSpec = do
               ]
         forM_ testCases $ \anns -> do
           let config = "(test)foo 1"
-              decoder = KDL.document $ do
-                KDL.nodeWith' "foo" anns $ KDL.arg @Int
+              decoder = KDL.document $ proc () -> do
+                KDL.nodeWith' "foo" anns $ KDL.arg @Int -< ()
           KDL.decodeWith decoder config `shouldBe` Right 1
 
       it "decodes a node without an annotation" $ do
@@ -187,14 +193,14 @@ apiSpec = do
               ]
         forM_ testCases $ \anns -> do
           let config = "foo 1"
-              decoder = KDL.document $ do
-                KDL.nodeWith' "foo" anns $ KDL.arg @Int
+              decoder = KDL.document $ proc () -> do
+                KDL.nodeWith' "foo" anns $ KDL.arg @Int -< ()
           KDL.decodeWith decoder config `shouldBe` Right 1
 
       it "fails when node has unexpected annotation" $ do
         let config = "(test)foo 2"
-            decoder = KDL.document $ do
-              KDL.nodeWith' "foo" ["FOO"] $ KDL.arg @Int
+            decoder = KDL.document $ proc () -> do
+              KDL.nodeWith' "foo" ["FOO"] $ KDL.arg @Int -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
@@ -204,9 +210,9 @@ apiSpec = do
     describe "remainingNodes" $ do
       it "returns all remaining nodes" $ do
         let config = "foo 1.0; foo 2.0; bar"
-            decoder = KDL.document $ do
-              _ <- KDL.node @Node "foo"
-              KDL.remainingNodes
+            decoder = KDL.document $ proc () -> do
+              _ <- KDL.node @Node "foo" -< ()
+              KDL.remainingNodes -< ()
             expected =
               Map.fromList
                 [ ("foo", [fooNode2])
@@ -240,11 +246,11 @@ apiSpec = do
     describe "remainingNodesWith" $ do
       it "returns all remaining nodes" $ do
         let config = "foo 1.0; foo 2.0; bar"
-            decodeNode = do
-              KDL.optional $ KDL.arg @Int
-            decoder = KDL.document $ do
-              _ <- KDL.node @Node "foo"
-              KDL.remainingNodesWith decodeNode
+            decodeNode = proc () -> do
+              KDL.optional $ KDL.arg @Int -< ()
+            decoder = KDL.document $ proc () -> do
+              _ <- KDL.node @Node "foo" -< ()
+              KDL.remainingNodesWith decodeNode -< ()
             expected =
               Map.fromList
                 [ ("foo", [Just 2])
@@ -254,10 +260,10 @@ apiSpec = do
 
       it "fails when node fails to parse" $ do
         let config = "foo 1; bar 1; bar \"hello\""
-            decodeNode = do
-              KDL.arg @Int
-            decoder = KDL.document $ do
-              KDL.remainingNodesWith decodeNode
+            decodeNode = proc () -> do
+              KDL.arg @Int -< ()
+            decoder = KDL.document $ proc () -> do
+              KDL.remainingNodesWith decodeNode -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: bar #1 > arg #0"
@@ -274,8 +280,8 @@ apiSpec = do
               ]
         forM_ testCases $ \anns -> do
           let config = "(test)foo 1"
-              decoder = KDL.document $ do
-                KDL.remainingNodesWith' anns $ KDL.arg @Int
+              decoder = KDL.document $ proc () -> do
+                KDL.remainingNodesWith' anns $ KDL.arg @Int -< ()
           KDL.decodeWith decoder config
             `shouldBe` (Right . Map.fromList) [("foo", [1])]
 
@@ -287,15 +293,15 @@ apiSpec = do
               ]
         forM_ testCases $ \anns -> do
           let config = "foo 1"
-              decoder = KDL.document $ do
-                KDL.remainingNodesWith' anns $ KDL.arg @Int
+              decoder = KDL.document $ proc () -> do
+                KDL.remainingNodesWith' anns $ KDL.arg @Int -< ()
           KDL.decodeWith decoder config
             `shouldBe` (Right . Map.fromList) [("foo", [1])]
 
       it "fails when node has unexpected annotation" $ do
         let config = "(FOO)foo 1; (test)foo 2"
-            decoder = KDL.document $ do
-              KDL.remainingNodesWith' ["FOO"] $ KDL.arg @Int
+            decoder = KDL.document $ proc () -> do
+              KDL.remainingNodesWith' ["FOO"] $ KDL.arg @Int -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #1"
@@ -305,16 +311,16 @@ apiSpec = do
     describe "argAt" $ do
       it "gets argument at a node" $ do
         let config = "foo \"bar\"; hello \"world\""
-            decoder = KDL.document $ do
-              hello <- KDL.argAt @Text "hello"
-              foo <- KDL.argAt @Text "foo"
-              pure (hello, foo)
+            decoder = KDL.document $ proc () -> do
+              hello <- KDL.argAt @Text "hello" -< ()
+              foo <- KDL.argAt @Text "foo" -< ()
+              returnA -< (hello, foo)
         KDL.decodeWith decoder config `shouldBe` Right ("world", "bar")
 
       it "fails if no node" $ do
         let config = "other_node"
-            decoder = KDL.document $ do
-              KDL.argAt @Int "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.argAt @Int "foo" -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: <root>"
@@ -323,8 +329,8 @@ apiSpec = do
 
       it "fails if node has no args" $ do
         let config = "foo"
-            decoder = KDL.document $ do
-              KDL.argAt @Int "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.argAt @Int "foo" -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
@@ -333,8 +339,8 @@ apiSpec = do
 
       it "fails if arg fails to parse" $ do
         let config = "foo 1"
-            decoder = KDL.document $ do
-              KDL.argAt @Text "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.argAt @Text "foo" -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > arg #0"
@@ -345,8 +351,8 @@ apiSpec = do
     describe "argAtWith" $ do
       it "gets argument at a node" $ do
         let config = "foo 1"
-            decoder = KDL.document $ do
-              KDL.argAtWith "foo" $ show . (* 10) <$> KDL.number
+            decoder = KDL.document $ proc () -> do
+              KDL.argAtWith "foo" $ show . (* 10) <$> KDL.number -< ()
         KDL.decodeWith decoder config `shouldBe` Right "10.0"
 
     -- Most behaviors tested with `argAtWith`
@@ -359,8 +365,8 @@ apiSpec = do
               ]
         forM_ testCases $ \anns -> do
           let config = "foo (test)a"
-              decoder = KDL.document $ do
-                KDL.argAtWith' "foo" anns KDL.text
+              decoder = KDL.document $ proc () -> do
+                KDL.argAtWith' "foo" anns KDL.text -< ()
           KDL.decodeWith decoder config `shouldBe` Right "a"
 
       it "decodes argument without an annotation" $ do
@@ -371,14 +377,14 @@ apiSpec = do
               ]
         forM_ testCases $ \anns -> do
           let config = "foo a"
-              decoder = KDL.document $ do
-                KDL.argAtWith' "foo" anns KDL.text
+              decoder = KDL.document $ proc () -> do
+                KDL.argAtWith' "foo" anns KDL.text -< ()
           KDL.decodeWith decoder config `shouldBe` Right "a"
 
       it "fails when argument has unexpected annotation" $ do
         let config = "foo (test)a"
-            decoder = KDL.document $ do
-              KDL.argAtWith' "foo" ["VAL"] KDL.text
+            decoder = KDL.document $ proc () -> do
+              KDL.argAtWith' "foo" ["VAL"] KDL.text -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > arg #0"
@@ -388,26 +394,26 @@ apiSpec = do
     describe "argsAt" $ do
       it "gets arguments at a node" $ do
         let config = "foo 1 2 3"
-            decoder = KDL.document $ do
-              KDL.argsAt @Int "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.argsAt @Int "foo" -< ()
         KDL.decodeWith decoder config `shouldBe` Right [1, 2, 3]
 
       it "returns empty list if no node" $ do
         let config = ""
-            decoder = KDL.document $ do
-              KDL.argsAt @Int "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.argsAt @Int "foo" -< ()
         KDL.decodeWith decoder config `shouldBe` Right []
 
       it "returns empty list if node has no args" $ do
         let config = "foo"
-            decoder = KDL.document $ do
-              KDL.argsAt @Int "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.argsAt @Int "foo" -< ()
         KDL.decodeWith decoder config `shouldBe` Right []
 
       it "fails if any arg fails to parse" $ do
         let config = "foo 1 \"asdf\""
-            decoder = KDL.document $ do
-              KDL.argsAt @Int "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.argsAt @Int "foo" -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > arg #1"
@@ -418,8 +424,8 @@ apiSpec = do
     describe "argsAtWith" $ do
       it "gets arguments at a node" $ do
         let config = "foo 1 2"
-            decoder = KDL.document $ do
-              KDL.argsAtWith "foo" $ show . (* 10) <$> KDL.number
+            decoder = KDL.document $ proc () -> do
+              KDL.argsAtWith "foo" $ show . (* 10) <$> KDL.number -< ()
         KDL.decodeWith decoder config `shouldBe` Right ["10.0", "20.0"]
 
     -- Most behaviors tested with `argsAtWith`
@@ -432,8 +438,8 @@ apiSpec = do
               ]
         forM_ testCases $ \anns -> do
           let config = "foo (test)a (test)b"
-              decoder = KDL.document $ do
-                KDL.argsAtWith' "foo" anns KDL.text
+              decoder = KDL.document $ proc () -> do
+                KDL.argsAtWith' "foo" anns KDL.text -< ()
           KDL.decodeWith decoder config `shouldBe` Right ["a", "b"]
 
       it "decodes arguments without an annotation" $ do
@@ -444,14 +450,14 @@ apiSpec = do
               ]
         forM_ testCases $ \anns -> do
           let config = "foo a b"
-              decoder = KDL.document $ do
-                KDL.argsAtWith' "foo" anns KDL.text
+              decoder = KDL.document $ proc () -> do
+                KDL.argsAtWith' "foo" anns KDL.text -< ()
           KDL.decodeWith decoder config `shouldBe` Right ["a", "b"]
 
       it "fails when argument has unexpected annotation" $ do
         let config = "foo (VAL)a (test)b"
-            decoder = KDL.document $ do
-              KDL.argsAtWith' "foo" ["VAL"] KDL.text
+            decoder = KDL.document $ proc () -> do
+              KDL.argsAtWith' "foo" ["VAL"] KDL.text -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > arg #1"
@@ -461,26 +467,26 @@ apiSpec = do
     describe "dashChildrenAt" $ do
       it "gets dash children at a node" $ do
         let config = "foo { - 1; - 2; - 3; }"
-            decoder = KDL.document $ do
-              KDL.dashChildrenAt @Int "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.dashChildrenAt @Int "foo" -< ()
         KDL.decodeWith decoder config `shouldBe` Right [1, 2, 3]
 
       it "returns empty list if no node" $ do
         let config = ""
-            decoder = KDL.document $ do
-              KDL.dashChildrenAt @Int "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.dashChildrenAt @Int "foo" -< ()
         KDL.decodeWith decoder config `shouldBe` Right []
 
       it "returns empty list if node has no dash children" $ do
         forM_ ["foo", "foo {}"] $ \config -> do
-          let decoder = KDL.document $ do
-                KDL.dashChildrenAt @Int "foo"
+          let decoder = KDL.document $ proc () -> do
+                KDL.dashChildrenAt @Int "foo" -< ()
           KDL.decodeWith decoder config `shouldBe` Right []
 
       it "fails if dash children have multiple args" $ do
         let config = "foo { - 1 2; - 3 4; }"
-            decoder = KDL.document $ do
-              KDL.dashChildrenAt @Int "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.dashChildrenAt @Int "foo" -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > - #0"
@@ -489,8 +495,8 @@ apiSpec = do
 
       it "fails if node has non-dash children" $ do
         let config = "foo { - 1; bar 1 2 3; }"
-            decoder = KDL.document $ do
-              KDL.dashChildrenAt @Int "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.dashChildrenAt @Int "foo" -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
@@ -499,8 +505,8 @@ apiSpec = do
 
       it "fails if any child fails to parse" $ do
         let config = "foo { - 1; - \"asdf\"; }"
-            decoder = KDL.document $ do
-              KDL.dashChildrenAt @Int "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.dashChildrenAt @Int "foo" -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > - #1 > arg #0"
@@ -511,8 +517,8 @@ apiSpec = do
     describe "dashChildrenAtWith" $ do
       it "gets dash children at a node" $ do
         let config = "foo { - 1; - 2; }"
-            decoder = KDL.document $ do
-              KDL.dashChildrenAtWith "foo" $ show . (* 10) <$> KDL.number
+            decoder = KDL.document $ proc () -> do
+              KDL.dashChildrenAtWith "foo" $ show . (* 10) <$> KDL.number -< ()
         KDL.decodeWith decoder config `shouldBe` Right ["10.0", "20.0"]
 
     -- Most behaviors tested with `dashChildrenAtWith`
@@ -525,8 +531,8 @@ apiSpec = do
               ]
         forM_ testCases $ \anns -> do
           let config = "foo { - (test)a; - (test)b; }"
-              decoder = KDL.document $ do
-                KDL.dashChildrenAtWith' "foo" anns KDL.text
+              decoder = KDL.document $ proc () -> do
+                KDL.dashChildrenAtWith' "foo" anns KDL.text -< ()
           KDL.decodeWith decoder config `shouldBe` Right ["a", "b"]
 
       it "decodes dash children without an annotation" $ do
@@ -537,14 +543,14 @@ apiSpec = do
               ]
         forM_ testCases $ \anns -> do
           let config = "foo { - a; - b; }"
-              decoder = KDL.document $ do
-                KDL.dashChildrenAtWith' "foo" anns KDL.text
+              decoder = KDL.document $ proc () -> do
+                KDL.dashChildrenAtWith' "foo" anns KDL.text -< ()
           KDL.decodeWith decoder config `shouldBe` Right ["a", "b"]
 
       it "fails when child has unexpected annotation" $ do
         let config = "foo { - (test)a; }"
-            decoder = KDL.document $ do
-              KDL.dashChildrenAtWith' "foo" ["VAL"] KDL.text
+            decoder = KDL.document $ proc () -> do
+              KDL.dashChildrenAtWith' "foo" ["VAL"] KDL.text -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > - #0 > arg #0"
@@ -554,8 +560,8 @@ apiSpec = do
     describe "dashNodesAt" $ do
       it "gets dash nodes at a node" $ do
         let config = "foo { - { bar; }; - { baz; }; }"
-            decoder = KDL.document $ do
-              KDL.dashNodesAt "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.dashNodesAt "foo" -< ()
             expected = [node "-" [node "bar" []], node "-" [node "baz" []]]
             node name children =
               Node
@@ -569,20 +575,20 @@ apiSpec = do
 
       it "returns empty list if no node" $ do
         let config = ""
-            decoder = KDL.document $ do
-              KDL.dashNodesAt @Node "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.dashNodesAt @Node "foo" -< ()
         KDL.decodeWith decoder config `shouldBe` Right []
 
       it "returns empty list if node has no dash nodes" $ do
         forM_ ["foo", "foo {}"] $ \config -> do
-          let decoder = KDL.document $ do
-                KDL.dashNodesAt @Node "foo"
+          let decoder = KDL.document $ proc () -> do
+                KDL.dashNodesAt @Node "foo" -< ()
           KDL.decodeWith decoder config `shouldBe` Right []
 
       it "fails if node has non-dash nodes" $ do
         let config = "foo { - 1; bar 1 2 3; }"
-            decoder = KDL.document $ do
-              KDL.dashNodesAt @Node "foo"
+            decoder = KDL.document $ proc () -> do
+              KDL.dashNodesAt @Node "foo" -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
@@ -593,18 +599,18 @@ apiSpec = do
     describe "dashNodesAtWith" $ do
       it "gets dash nodes at a node" $ do
         let config = "foo { - 1 { bar \"hello\"; }; - 2 { bar \"world\"; }; }"
-            decodeChild = do
-              arg <- KDL.arg @Int
-              child <- KDL.children $ KDL.nodeWith "bar" $ KDL.arg @Text
-              pure (arg, child)
-            decoder = KDL.document $ do
-              KDL.dashNodesAtWith "foo" decodeChild
+            decodeChild = proc () -> do
+              arg <- KDL.arg @Int -< ()
+              child <- KDL.children $ KDL.nodeWith "bar" $ KDL.arg @Text -< ()
+              returnA -< (arg, child)
+            decoder = KDL.document $ proc () -> do
+              KDL.dashNodesAtWith "foo" decodeChild -< ()
         KDL.decodeWith decoder config `shouldBe` Right [(1, "hello"), (2, "world")]
 
       it "fails if any child fails to parse" $ do
         let config = "foo { - { bar 1; }; - { bar \"test\"; }; }"
-            decoder = KDL.document $ do
-              KDL.dashNodesAtWith "foo" $ KDL.children $ KDL.argAt @Int "bar"
+            decoder = KDL.document $ proc () -> do
+              KDL.dashNodesAtWith "foo" $ KDL.children $ KDL.argAt @Int "bar" -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > - #1 > bar #0 > arg #0"
@@ -614,30 +620,30 @@ apiSpec = do
   describe "NodeDecoder" $ do
     let decodeNode name decoder config =
           KDL.decodeWith
-            ( KDL.document $ do
-                KDL.nodeWith name decoder
+            ( KDL.document $ proc () -> do
+                KDL.nodeWith name decoder -< ()
             )
             config
 
     describe "arg" $ do
       it "decodes an argument" $ do
         let config = "foo 1 \"bar\""
-            decoder = do
-              arg1 <- KDL.arg @Int
-              arg2 <- KDL.arg @Text
-              pure (arg1, arg2)
+            decoder = proc () -> do
+              arg1 <- KDL.arg @Int -< ()
+              arg2 <- KDL.arg @Text -< ()
+              returnA -< (arg1, arg2)
         decodeNode "foo" decoder config `shouldBe` Right (1, "bar")
 
       it "decodes multiple arguments" $ do
         let config = "foo 1 2 3"
-            decoder = do
-              KDL.many $ KDL.arg @Int
+            decoder = proc () -> do
+              KDL.many $ KDL.arg @Int -< ()
         decodeNode "foo" decoder config `shouldBe` Right [1, 2, 3]
 
       it "fails if argument doesn't exist" $ do
         let config = "foo"
-            decoder = do
-              KDL.arg @Int
+            decoder = proc () -> do
+              KDL.arg @Int -< ()
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
@@ -646,8 +652,8 @@ apiSpec = do
 
       it "fails if argument fails to parse" $ do
         let config = "foo \"test\""
-            decoder = do
-              KDL.arg @Int
+            decoder = proc () -> do
+              KDL.arg @Int -< ()
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > arg #0"
@@ -656,8 +662,8 @@ apiSpec = do
 
       it "fails if not all arguments are decoded" $ do
         let config = "foo 1 2 3"
-            decoder = do
-              KDL.arg @Int
+            decoder = proc () -> do
+              KDL.arg @Int -< ()
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
@@ -668,8 +674,8 @@ apiSpec = do
     describe "argWith" $ do
       it "decodes an argument" $ do
         let config = "foo \"bar\""
-            decoder = do
-              KDL.argWith KDL.text
+            decoder = proc () -> do
+              KDL.argWith KDL.text -< ()
         decodeNode "foo" decoder config `shouldBe` Right "bar"
 
     -- Most behaviors tested with `argWith`
@@ -682,8 +688,8 @@ apiSpec = do
               ]
         forM_ testCases $ \anns -> do
           let config = "foo (test)a"
-              decoder = do
-                KDL.argWith' anns KDL.text
+              decoder = proc () -> do
+                KDL.argWith' anns KDL.text -< ()
           decodeNode "foo" decoder config `shouldBe` Right "a"
 
       it "decodes argument without an annotation" $ do
@@ -694,14 +700,14 @@ apiSpec = do
               ]
         forM_ testCases $ \anns -> do
           let config = "foo a"
-              decoder = do
-                KDL.argWith' anns KDL.text
+              decoder = proc () -> do
+                KDL.argWith' anns KDL.text -< ()
           decodeNode "foo" decoder config `shouldBe` Right "a"
 
       it "fails when argument has unexpected annotation" $ do
         let config = "foo (test)a"
-            decoder = do
-              KDL.argWith' ["VAL"] KDL.text
+            decoder = proc () -> do
+              KDL.argWith' ["VAL"] KDL.text -< ()
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > arg #0"
@@ -711,30 +717,30 @@ apiSpec = do
     describe "prop" $ do
       it "decodes a prop" $ do
         let config = "foo test1=1 test2=\"hello\""
-            decoder = do
-              prop1 <- KDL.prop @Text "test2"
-              prop2 <- KDL.prop @Int "test1"
-              pure (prop1, prop2)
+            decoder = proc () -> do
+              prop1 <- KDL.prop @Text "test2" -< ()
+              prop2 <- KDL.prop @Int "test1" -< ()
+              returnA -< (prop1, prop2)
         decodeNode "foo" decoder config `shouldBe` Right ("hello", 1)
 
       it "can optionally decode a prop" $ do
         let config = "foo a=1"
-            decoder = do
-              a <- KDL.optional $ KDL.prop @Int "a"
-              b <- KDL.optional $ KDL.prop @Int "b"
-              pure (a, b)
+            decoder = proc () -> do
+              a <- KDL.optional $ KDL.prop @Int "a" -< ()
+              b <- KDL.optional $ KDL.prop @Int "b" -< ()
+              returnA -< (a, b)
         decodeNode "foo" decoder config `shouldBe` Right (Just 1, Nothing)
 
       it "decodes last prop" $ do
         let config = "foo test=1 test=2"
-            decoder = do
-              KDL.prop @Int "test"
+            decoder = proc () -> do
+              KDL.prop @Int "test" -< ()
         decodeNode "foo" decoder config `shouldBe` Right 2
 
       it "fails if prop doesn't exist" $ do
         let config = "foo 123"
-            decoder = do
-              KDL.prop @Int "test"
+            decoder = proc () -> do
+              KDL.prop @Int "test" -< ()
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
@@ -743,8 +749,8 @@ apiSpec = do
 
       it "fails if prop fails to parse" $ do
         let config = "foo hello=world"
-            decoder = do
-              KDL.prop @Int "hello"
+            decoder = proc () -> do
+              KDL.prop @Int "hello" -< ()
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > prop hello"
@@ -753,8 +759,8 @@ apiSpec = do
 
       it "fails if not all props are decoded" $ do
         let config = "foo a=1 b=2"
-            decoder = do
-              KDL.prop @Int "a"
+            decoder = proc () -> do
+              KDL.prop @Int "a" -< ()
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
@@ -765,8 +771,8 @@ apiSpec = do
     describe "propWith" $ do
       it "decodes a prop" $ do
         let config = "foo a=1"
-            decoder = do
-              KDL.propWith "a" KDL.number
+            decoder = proc () -> do
+              KDL.propWith "a" KDL.number -< ()
         decodeNode "foo" decoder config `shouldBe` Right 1
 
     -- Most behaviors tested with `propWith`
@@ -779,8 +785,8 @@ apiSpec = do
               ]
         forM_ testCases $ \anns -> do
           let config = "foo a=(test)1"
-              decoder = do
-                KDL.propWith' "a" anns KDL.number
+              decoder = proc () -> do
+                KDL.propWith' "a" anns KDL.number -< ()
           decodeNode "foo" decoder config `shouldBe` Right 1
 
       it "decodes prop without an annotation" $ do
@@ -791,14 +797,14 @@ apiSpec = do
               ]
         forM_ testCases $ \anns -> do
           let config = "foo a=1"
-              decoder = do
-                KDL.propWith' "a" anns KDL.number
+              decoder = proc () -> do
+                KDL.propWith' "a" anns KDL.number -< ()
           decodeNode "foo" decoder config `shouldBe` Right 1
 
       it "fails when prop has unexpected annotation" $ do
         let config = "foo a=(test)1"
-            decoder = do
-              KDL.propWith' "a" ["VAL"] KDL.number
+            decoder = proc () -> do
+              KDL.propWith' "a" ["VAL"] KDL.number -< ()
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > prop a"
@@ -808,24 +814,24 @@ apiSpec = do
     describe "remainingProps" $ do
       it "decodes remaining props" $ do
         let config = "foo a=1 b=2 c=3 b=4"
-            decoder = do
-              _ <- KDL.prop @Int "a"
-              KDL.remainingProps @Int
+            decoder = proc () -> do
+              _ <- KDL.prop @Int "a" -< ()
+              KDL.remainingProps @Int -< ()
         decodeNode "foo" decoder config
           `shouldBe` (Right . Map.fromList) [("b", 4), ("c", 3)]
 
       it "returns empty map if no props left" $ do
         let config = "foo a=1"
-            decoder = do
-              _ <- KDL.prop @Int "a"
-              KDL.remainingProps @Int
+            decoder = proc () -> do
+              _ <- KDL.prop @Int "a" -< ()
+              KDL.remainingProps @Int -< ()
         decodeNode "foo" decoder config `shouldBe` Right Map.empty
 
       it "fails if prop fails to parse" $ do
         let config = "foo a=1 b=1 c=2 c=test"
-            decoder = do
-              _ <- KDL.prop @Int "a"
-              KDL.remainingProps @Int
+            decoder = proc () -> do
+              _ <- KDL.prop @Int "a" -< ()
+              KDL.remainingProps @Int -< ()
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > prop c"
@@ -836,9 +842,9 @@ apiSpec = do
     describe "remainingPropsWith" $ do
       it "decodes remaining props" $ do
         let config = "foo a=1 b=2 c=3 b=4"
-            decoder = do
-              _ <- KDL.prop @Int "a"
-              KDL.remainingPropsWith KDL.number
+            decoder = proc () -> do
+              _ <- KDL.prop @Int "a" -< ()
+              KDL.remainingPropsWith KDL.number -< ()
         decodeNode "foo" decoder config
           `shouldBe` (Right . Map.fromList) [("b", 4), ("c", 3)]
 
@@ -852,8 +858,8 @@ apiSpec = do
               ]
         forM_ testCases $ \anns -> do
           let config = "foo a=(test)1 b=(test)2"
-              decoder = do
-                KDL.remainingPropsWith' anns KDL.number
+              decoder = proc () -> do
+                KDL.remainingPropsWith' anns KDL.number -< ()
           decodeNode "foo" decoder config
             `shouldBe` (Right . Map.fromList) [("a", 1), ("b", 2)]
 
@@ -865,15 +871,15 @@ apiSpec = do
               ]
         forM_ testCases $ \anns -> do
           let config = "foo a=1 b=2"
-              decoder = do
-                KDL.remainingPropsWith' anns KDL.number
+              decoder = proc () -> do
+                KDL.remainingPropsWith' anns KDL.number -< ()
           decodeNode "foo" decoder config
             `shouldBe` (Right . Map.fromList) [("a", 1), ("b", 2)]
 
       it "fails when prop has unexpected annotation" $ do
         let config = "foo a=(VAL)1 b=(test)2"
-            decoder = do
-              KDL.remainingPropsWith' ["VAL"] KDL.number
+            decoder = proc () -> do
+              KDL.remainingPropsWith' ["VAL"] KDL.number -< ()
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > prop b"
@@ -883,8 +889,8 @@ apiSpec = do
     describe "children" $ do
       it "decodes children" $ do
         let config = "foo { bar test; }"
-            decoder = do
-              KDL.children $ KDL.node @Node "bar"
+            decoder = proc () -> do
+              KDL.children $ KDL.node @Node "bar" -< ()
             expected =
               Node
                 { ann = Nothing
@@ -903,16 +909,16 @@ apiSpec = do
 
       it "can be re-entered" $ do
         let config = "foo { bar a; baz b; }"
-            decoder = do
-              arg1 <- KDL.children $ KDL.argAt @Text "bar"
-              arg2 <- KDL.children $ KDL.argAt @Text "baz"
-              pure (arg1, arg2)
+            decoder = proc () -> do
+              arg1 <- KDL.children $ KDL.argAt @Text "bar" -< ()
+              arg2 <- KDL.children $ KDL.argAt @Text "baz" -< ()
+              returnA -< (arg1, arg2)
         decodeNode "foo" decoder config `shouldBe` Right ("a", "b")
 
       it "fails if not all children are decoded" $ do
         let config = "foo { asdf; bar; }"
-            decoder = do
-              KDL.children $ KDL.node @Node "bar"
+            decoder = proc () -> do
+              KDL.children $ KDL.node @Node "bar" -< ()
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
@@ -923,8 +929,8 @@ apiSpec = do
     describe "any" $ do
       it "decodes any value" $ do
         let config = "foo 1.0 asdf true"
-            decoder = KDL.document $ do
-              KDL.argsAtWith "foo" KDL.any
+            decoder = KDL.document $ proc () -> do
+              KDL.argsAtWith "foo" KDL.any -< ()
             val data_ =
               Value
                 { ann = Nothing
@@ -937,14 +943,14 @@ apiSpec = do
     describe "text" $ do
       it "decodes text value" $ do
         let config = "foo asdf"
-            decoder = KDL.document $ do
-              KDL.argAtWith "foo" KDL.text
+            decoder = KDL.document $ proc () -> do
+              KDL.argAtWith "foo" KDL.text -< ()
         KDL.decodeWith decoder config `shouldBe` Right "asdf"
 
       it "fails when value is not text" $ do
         let config = "foo 1"
-            decoder = KDL.document $ do
-              KDL.argAtWith "foo" KDL.text
+            decoder = KDL.document $ proc () -> do
+              KDL.argAtWith "foo" KDL.text -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > arg #0"
@@ -954,14 +960,14 @@ apiSpec = do
     describe "number" $ do
       it "decodes number value" $ do
         let config = "foo 1"
-            decoder = KDL.document $ do
-              KDL.argAtWith "foo" KDL.number
+            decoder = KDL.document $ proc () -> do
+              KDL.argAtWith "foo" KDL.number -< ()
         KDL.decodeWith decoder config `shouldBe` Right 1
 
       it "fails when value is not number" $ do
         let config = "foo asdf"
-            decoder = KDL.document $ do
-              KDL.argAtWith "foo" KDL.number
+            decoder = KDL.document $ proc () -> do
+              KDL.argAtWith "foo" KDL.number -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > arg #0"
@@ -971,14 +977,14 @@ apiSpec = do
     describe "bool" $ do
       it "decodes bool value" $ do
         let config = "foo true"
-            decoder = KDL.document $ do
-              KDL.argAtWith "foo" KDL.bool
+            decoder = KDL.document $ proc () -> do
+              KDL.argAtWith "foo" KDL.bool -< ()
         KDL.decodeWith decoder config `shouldBe` Right True
 
       it "fails when value is not bool" $ do
         let config = "foo 1"
-            decoder = KDL.document $ do
-              KDL.argAtWith "foo" KDL.bool
+            decoder = KDL.document $ proc () -> do
+              KDL.argAtWith "foo" KDL.bool -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > arg #0"
@@ -988,14 +994,14 @@ apiSpec = do
     describe "null" $ do
       it "decodes null value" $ do
         let config = "foo null"
-            decoder = KDL.document $ do
-              KDL.argAtWith "foo" KDL.null
+            decoder = KDL.document $ proc () -> do
+              KDL.argAtWith "foo" KDL.null -< ()
         KDL.decodeWith decoder config `shouldBe` Right ()
 
       it "fails when value is not null" $ do
         let config = "foo 1"
-            decoder = KDL.document $ do
-              KDL.argAtWith "foo" KDL.null
+            decoder = KDL.document $ proc () -> do
+              KDL.argAtWith "foo" KDL.null -< ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > arg #0"
@@ -1006,16 +1012,20 @@ apiSpec = do
     describe "oneOf" $ do
       it "decodes one of the options" $ do
         let config = "foo 123 hello"
-            decoder = KDL.document $ do
+            decoder = KDL.document $ proc () -> do
               KDL.nodeWith "foo" . KDL.many . KDL.argWith $
                 KDL.oneOf [Left <$> KDL.number, Right <$> KDL.text]
+                -<
+                  ()
         KDL.decodeWith decoder config `shouldBe` Right [Left 123, Right "hello"]
 
       it "fails if none can be decoded" $ do
         let config = "foo 123 hello"
-            decoder = KDL.document $ do
+            decoder = KDL.document $ proc () -> do
               KDL.nodeWith "foo" . KDL.many . KDL.argWith $
                 KDL.oneOf [Left <$> KDL.number, Right <$> KDL.bool]
+                -<
+                  ()
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0 > arg #1"
@@ -1026,34 +1036,121 @@ apiSpec = do
     describe "option" $ do
       it "defaults to the given value" $ do
         let config = "foo"
-            decoder = KDL.document $ do
-              KDL.nodeWith "foo" $ KDL.option 123 $ KDL.arg @Int
+            decoder = KDL.document $ proc () -> do
+              KDL.nodeWith "foo" $ KDL.option 123 $ KDL.arg @Int -< ()
         KDL.decodeWith decoder config `shouldBe` Right 123
+
+schemaSpec :: Spec
+schemaSpec = do
+  describe "documentSchema" $ do
+    it "gets the schema of a decoder" $ do
+      let decoder = KDL.document $ proc () -> do
+            x <- KDL.nodeWith "foo" $ show <$> KDL.argWith decodeFoo -< ()
+            ys <- KDL.many $ KDL.nodeWith "bar" $ KDL.arg @String -< ()
+
+            zType <- KDL.argAt @Text "baz_type" -< ()
+            z <- KDL.argAtWith "baz" decodeBaz -< zType
+
+            returnA -< (x, ys, z)
+          decodeFoo =
+            KDL.oneOf
+              [ Left <$> KDL.valueDecoder @Bool
+              , Right <$> KDL.valueDecoder @Text
+              ]
+          decodeBaz = proc zType -> do
+            case zType of
+              "int" -> KDL.valueDecoder @Int64 -< ()
+              "bool" -> (\b -> if b then 1 else 0) <$> KDL.valueDecoder @Bool -< ()
+              _ -> KDL.fail -< "Invalid type: " <> zType
+          expected =
+            KDL.SchemaAnd
+              [ KDL.SchemaOne . KDL.NodeNamed "foo" $
+                  KDL.TypedNodeSchema
+                    { typeHint = typeRep $ Proxy @String
+                    , validTypeAnns = []
+                    , nodeSchema =
+                        KDL.SchemaOne . KDL.NodeArg $
+                          KDL.TypedValueSchema
+                            { typeHint = typeRep $ Proxy @(Either Bool Text)
+                            , validTypeAnns = []
+                            , dataSchema =
+                                KDL.SchemaOr
+                                  [ KDL.SchemaOne KDL.BoolSchema
+                                  , KDL.SchemaOne KDL.TextSchema
+                                  ]
+                            }
+                    }
+              , KDL.SchemaOr
+                  [ KDL.SchemaSome . KDL.SchemaOne . KDL.NodeNamed "bar" $
+                      KDL.TypedNodeSchema
+                        { typeHint = typeRep $ Proxy @String
+                        , validTypeAnns = []
+                        , nodeSchema =
+                            KDL.SchemaOne . KDL.NodeArg $
+                              KDL.TypedValueSchema
+                                { typeHint = typeRep $ Proxy @String
+                                , validTypeAnns = ["string"]
+                                , dataSchema = KDL.SchemaOne KDL.TextSchema
+                                }
+                        }
+                  , KDL.SchemaAnd []
+                  ]
+              , KDL.SchemaOne . KDL.NodeNamed "baz_type" $
+                  KDL.TypedNodeSchema
+                    { typeHint = typeRep $ Proxy @Text
+                    , validTypeAnns = []
+                    , nodeSchema =
+                        KDL.SchemaOne . KDL.NodeArg $
+                          KDL.TypedValueSchema
+                            { typeHint = typeRep $ Proxy @Text
+                            , validTypeAnns = ["text"]
+                            , dataSchema = KDL.SchemaOne KDL.TextSchema
+                            }
+                    }
+              , KDL.SchemaOne . KDL.NodeNamed "baz" $
+                  KDL.TypedNodeSchema
+                    { typeHint = typeRep $ Proxy @Int64
+                    , validTypeAnns = []
+                    , nodeSchema =
+                        KDL.SchemaOne . KDL.NodeArg $
+                          KDL.TypedValueSchema
+                            { typeHint = typeRep $ Proxy @Int64
+                            , validTypeAnns = []
+                            , dataSchema =
+                                KDL.SchemaOr
+                                  [ KDL.SchemaOne KDL.NumberSchema
+                                  , KDL.SchemaOne KDL.BoolSchema
+                                  ]
+                            }
+                    }
+              ]
+      KDL.documentSchema decoder `shouldBe` expected
 
 newtype MyNode = MyNode Int
   deriving (Eq)
 
 instance KDL.DecodeNode MyNode where
   validNodeTypeAnns _ = ["MyNode"]
-  nodeDecoder = do
-    x <- KDL.arg
-    unless (0 < x && x < 10) $ do
-      KDL.fail $ "Invalid argument: " <> (Text.pack . show) x
-    pure $ MyNode x
+  nodeDecoder = proc () -> do
+    x <- KDL.arg -< ()
+    if not (0 < x && x < 10)
+      then KDL.fail -< "Invalid argument: " <> (Text.pack . show) x
+      else returnA -< ()
+    returnA -< MyNode x
 
 decodeNodeSpec :: Spec
 decodeNodeSpec = do
   describe "DecodeNode" $ do
     it "decodes a custom node" $ do
       let config = "foo 1"
-          decoder = KDL.document $ do
-            KDL.node "foo"
+          decoder = KDL.document $ proc () -> do
+            KDL.node "foo" -< ()
       KDL.decodeWith decoder config `shouldBe` Right (MyNode 1)
 
     it "throws user-specified error" $ do
       let config = "foo 100"
-          decoder = KDL.document $ do
-            KDL.node @MyNode "foo"
+          decoder = KDL.document $ proc () -> do
+            KDL.node @MyNode "foo" -< ()
       KDL.decodeWith decoder config
         `shouldSatisfy` decodeErrorMsg
           [ "At: foo #0"
@@ -1062,14 +1159,14 @@ decodeNodeSpec = do
 
     it "decodes valid type ann" $ do
       let config = "(MyNode)foo 1"
-          decoder = KDL.document $ do
-            KDL.node "foo"
+          decoder = KDL.document $ proc () -> do
+            KDL.node "foo" -< ()
       KDL.decodeWith decoder config `shouldBe` Right (MyNode 1)
 
     it "fails on invalid type ann" $ do
       let config = "(bad)foo 1"
-          decoder = KDL.document $ do
-            KDL.node @MyNode "foo"
+          decoder = KDL.document $ proc () -> do
+            KDL.node @MyNode "foo" -< ()
       KDL.decodeWith decoder config
         `shouldSatisfy` decodeErrorMsg
           [ "At: foo #0"
@@ -1091,14 +1188,14 @@ decodeValueSpec = do
   describe "DecodeValue" $ do
     it "decodes a custom value" $ do
       let config = "foo 1"
-          decoder = KDL.document $ do
-            KDL.argAt "foo"
+          decoder = KDL.document $ proc () -> do
+            KDL.argAt "foo" -< ()
       KDL.decodeWith decoder config `shouldBe` Right (MyVal 1)
 
     it "throws user-specified error" $ do
       let config = "foo 100.0"
-          decoder = KDL.document $ do
-            KDL.argAt @MyVal "foo"
+          decoder = KDL.document $ proc () -> do
+            KDL.argAt @MyVal "foo" -< ()
       KDL.decodeWith decoder config
         `shouldSatisfy` decodeErrorMsg
           [ "At: foo #0 > arg #0"
@@ -1107,14 +1204,14 @@ decodeValueSpec = do
 
     it "decodes valid type ann" $ do
       let config = "foo (MyVal)1"
-          decoder = KDL.document $ do
-            KDL.argAt "foo"
+          decoder = KDL.document $ proc () -> do
+            KDL.argAt "foo" -< ()
       KDL.decodeWith decoder config `shouldBe` Right (MyVal 1)
 
     it "fails on invalid type ann" $ do
       let config = "foo (bad)1"
-          decoder = KDL.document $ do
-            KDL.argAt @MyVal "foo"
+          decoder = KDL.document $ proc () -> do
+            KDL.argAt @MyVal "foo" -< ()
       KDL.decodeWith decoder config
         `shouldSatisfy` decodeErrorMsg
           [ "At: foo #0 > arg #0"

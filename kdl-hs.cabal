@@ -23,24 +23,24 @@ source-repository head
 library
   hs-source-dirs: src
   exposed-modules:
-    Data.KDL
-    Data.KDL.Arrow
-    Data.KDL.Decoder
-    Data.KDL.Decoder.Arrow
-    Data.KDL.Decoder.Internal.DecodeM
-    Data.KDL.Decoder.Internal.Error
-    Data.KDL.Decoder.Internal.Monad
-    Data.KDL.Decoder.Monad
-    Data.KDL.Decoder.Schema
-    Data.KDL.Parser
-    Data.KDL.Render
-    Data.KDL.Types
+    KDL
+    KDL.Arrow
+    KDL.Decoder
+    KDL.Decoder.Arrow
+    KDL.Decoder.Internal.DecodeM
+    KDL.Decoder.Internal.Error
+    KDL.Decoder.Internal.Monad
+    KDL.Decoder.Monad
+    KDL.Decoder.Schema
+    KDL.Parser
+    KDL.Render
+    KDL.Types
   other-modules:
-    Data.KDL.Parser.Hustle
-    Data.KDL.Parser.Hustle.Formatter
-    Data.KDL.Parser.Hustle.Internal
-    Data.KDL.Parser.Hustle.Parser
-    Data.KDL.Parser.Hustle.Types
+    KDL.Parser.Hustle
+    KDL.Parser.Hustle.Formatter
+    KDL.Parser.Hustle.Internal
+    KDL.Parser.Hustle.Parser
+    KDL.Parser.Hustle.Types
   build-depends:
       base < 5
     , containers
@@ -59,9 +59,9 @@ test-suite kdl-tests
   hs-source-dirs: test
   main-is: Main.hs
   other-modules:
-    Data.KDL.ParserSpec
-    Data.KDL.Decoder.ArrowSpec
-    Data.KDL.Decoder.MonadSpec
+    KDL.ParserSpec
+    KDL.Decoder.ArrowSpec
+    KDL.Decoder.MonadSpec
   build-depends:
       base
     , containers

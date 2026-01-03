@@ -1,10 +1,12 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Data.KDL.ParserSpec (spec) where
+module KDL.ParserSpec (spec) where
 
-import Data.KDL.Parser
-import Data.KDL.Types (
+import Data.Text (Text)
+import Data.Text qualified as Text
+import KDL.Parser
+import KDL.Types (
   Entry (..),
   Identifier (..),
   Node (..),
@@ -12,8 +14,6 @@ import Data.KDL.Types (
   Value (..),
   ValueData (..),
  )
-import Data.Text (Text)
-import Data.Text qualified as Text
 import Skeletest
 import Skeletest.Predicate qualified as P
 import System.IO.Temp (withSystemTempDirectory)

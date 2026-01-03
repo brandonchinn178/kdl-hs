@@ -3,10 +3,10 @@
 {-# LANGUAGE RecordWildCards #-}
 
 {- | Vendered from https://github.com/fuzzypixelz/hustle -}
-module Data.KDL.Parser.Hustle.Parser where
+module KDL.Parser.Hustle.Parser where
 
-import           Data.KDL.Parser.Hustle.Internal
-import           Data.KDL.Parser.Hustle.Types
+import           KDL.Parser.Hustle.Internal
+import           KDL.Parser.Hustle.Types
 
 import           Control.Monad                  ( void )
 import           Data.Char                      ( chr

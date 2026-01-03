@@ -4,7 +4,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 {- | Vendered from https://github.com/fuzzypixelz/hustle -}
-module Data.KDL.Parser.Hustle.Formatter
+module KDL.Parser.Hustle.Formatter
   ( Pretty(pretty)
   ) where
 
@@ -13,11 +13,11 @@ import qualified Data.Map.Strict               as Map
 import           Data.Maybe                     ( catMaybes )
 import           Data.Scientific                ( Scientific )
 import qualified Data.Text                     as T
-import           Data.KDL.Parser.Hustle.Internal ( escChar
+import           KDL.Parser.Hustle.Internal ( escChar
                                                 , match
                                                 )
-import           Data.KDL.Parser.Hustle.Parser  ( identifier )
-import           Data.KDL.Parser.Hustle.Types
+import           KDL.Parser.Hustle.Parser  ( identifier )
+import           KDL.Parser.Hustle.Types
 import           Prettyprinter                  ( Pretty(pretty)
                                                 , braces
                                                 , dquotes
