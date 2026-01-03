@@ -97,6 +97,7 @@ module Data.KDL.Decoder.Monad (
 import Control.Applicative (Alternative)
 import Control.Arrow qualified as Arrow
 import Data.Coerce (coerce)
+import Data.KDL.Decoder.Arrow.Internal qualified as Arrow
 import Data.KDL.Decoder.Arrow qualified as Arrow
 import Data.KDL.Decoder.Internal.DecodeM
 import Data.KDL.Decoder.Schema (
