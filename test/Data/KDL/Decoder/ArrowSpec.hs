@@ -6,8 +6,7 @@ module Data.KDL.Decoder.ArrowSpec (spec) where
 
 import Control.Arrow (returnA)
 import Control.Monad (forM_, unless, when)
-import Data.KDL.Decoder.Arrow qualified as KDL
-import Data.KDL.Decoder.Schema qualified as KDL
+import Data.KDL.Arrow qualified as KDL
 import Data.KDL.Types (
   Entry (..),
   Identifier (..),

@@ -24,11 +24,12 @@ library
   hs-source-dirs: src
   exposed-modules:
     Data.KDL
+    Data.KDL.Arrow
     Data.KDL.Decoder
     Data.KDL.Decoder.Arrow
-    Data.KDL.Decoder.Arrow.Internal
     Data.KDL.Decoder.Internal.DecodeM
     Data.KDL.Decoder.Internal.Error
+    Data.KDL.Decoder.Internal.Monad
     Data.KDL.Decoder.Monad
     Data.KDL.Decoder.Schema
     Data.KDL.Parser

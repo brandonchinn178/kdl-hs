@@ -1035,7 +1035,7 @@ newtype MyNode = MyNode Int
 
 instance KDL.DecodeNode MyNode where
   validNodeTypeAnns _ = ["MyNode"]
-  nodeDecoder = KDL.noSchema $ do
+  nodeDecoder = do
     x <- KDL.arg
     unless (0 < x && x < 10) $ do
       KDL.fail $ "Invalid argument: " <> (Text.pack . show) x
@@ -1081,7 +1081,7 @@ newtype MyVal = MyVal Double
 
 instance KDL.DecodeValue MyVal where
   validValueTypeAnns _ = ["MyVal"]
-  valueDecoder = KDL.noSchema . KDL.withDecoder KDL.number $ \x -> do
+  valueDecoder = KDL.withDecoder KDL.number $ \x -> do
     unless (0 < x && x < 10) $ do
       KDL.failM $ "Invalid value: " <> (Text.pack . show) x
     pure $ MyVal (realToFrac x)

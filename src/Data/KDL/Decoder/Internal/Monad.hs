@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Data.KDL.Decoder.Arrow.Internal (
+module Data.KDL.Decoder.Internal.Monad (
   -- * Decoder
   Decoder (..),
   liftDecodeM,
@@ -94,7 +94,8 @@ runDecodeStateM o hist m =
 
 -- | @Decoder o a b@ represents an arrow with input @a@ and output @b@, within
 -- the context of decoding a KDL object of type @o@. It also knows the expected
--- schema of @o@.
+-- schema of @o@. Most of the time, @a@ is @()@; it would only be different if
+-- you're using Arrows notation.
 --
 -- We're using arrows here so that we can:
 --
@@ -139,6 +140,14 @@ instance Alternative (Decoder o a) where
               pure (x : xs, s2)
          in go
   many (Decoder sch run) = some (Decoder sch run) <|> pure []
+
+-- | Eliminates all schema information; avoid whenever possible.
+instance Monad (Decoder o a) where
+  Decoder _ run1 >>= k =
+    Decoder SchemaUnknown $ \a -> do
+      x <- run1 a
+      let Decoder _ run2 = k x
+      run2 a
 
 liftDecodeM :: (a -> DecodeM b) -> Decoder o a b
 liftDecodeM f = Decoder (SchemaAnd []) (Trans.lift . f)

@@ -3,6 +3,10 @@ This module is intended to be imported qualified as:
 
 > import Data.KDL qualified as KDL
 
+This provides a Monad interface for decoding KDL files, which is sufficient for
+most cases. You may wish to use "Data.KDL.Arrow" if you would like to
+statically analyze a decoder's schema, e.g. to generate documentation.
+
 = Quickstart
 
 Given a file @config.kdl@:
@@ -47,14 +51,14 @@ data Dep = Dep
   deriving (Show)
 
 instance KDL.DecodeNode Config where
-  nodeDecoder = KDL.noSchema $ do
+  nodeDecoder = do
     name <- KDL.argAt "name"
     version <- KDL.argAt "version"
     dependencies <- KDL.nodeWith "dependencies" . KDL.children $ KDL.remainingNodes
     pure Config{..}
 
 instance KDL.DecodeNode Dep where
-  nodeDecoder = KDL.noSchema $ do
+  nodeDecoder = do
     version <- KDL.arg
     optional <- KDL.option False $ KDL.prop "optional"
     pure Dep{..}
