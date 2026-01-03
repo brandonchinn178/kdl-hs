@@ -68,13 +68,17 @@ data instance SchemaItem Value
 schemaJoin :: Schema a -> Schema a -> Schema a
 schemaJoin = curry $ \case
   (SchemaAnd l, SchemaAnd r) -> SchemaAnd (l <> r)
+  (l, SchemaAnd []) -> l
   (l, SchemaAnd r) -> SchemaAnd (l : r)
+  (SchemaAnd [], r) -> r
   (SchemaAnd l, r) -> SchemaAnd (l <> [r])
   (l, r) -> SchemaAnd [l, r]
 
 schemaAlt :: Schema a -> Schema a -> Schema a
 schemaAlt = curry $ \case
   (SchemaOr l, SchemaOr r) -> SchemaOr (l <> r)
+  (l, SchemaOr []) -> l
   (l, SchemaOr r) -> SchemaOr (l : r)
-  (SchemaOr l, r) -> SchemaOr (r : l)
+  (SchemaOr [], r) -> r
+  (SchemaOr l, r) -> SchemaOr (l <> [r])
   (l, r) -> SchemaOr [l, r]

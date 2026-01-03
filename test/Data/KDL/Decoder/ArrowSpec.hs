@@ -6,6 +6,7 @@ module Data.KDL.Decoder.ArrowSpec (spec) where
 
 import Control.Arrow (returnA)
 import Control.Monad (forM_, unless, when)
+import Data.Int (Int64)
 import Data.KDL.Arrow qualified as KDL
 import Data.KDL.Types (
   Entry (..),
@@ -1046,12 +1047,21 @@ schemaSpec = do
       let decoder = KDL.document $ proc () -> do
             x <- KDL.nodeWith "foo" $ show <$> KDL.argWith decodeFoo -< ()
             ys <- KDL.many $ KDL.nodeWith "bar" $ KDL.arg @String -< ()
-            returnA -< (x, ys)
+
+            zType <- KDL.argAt @Text "baz_type" -< ()
+            z <- KDL.argAtWith "baz" decodeBaz -< zType
+
+            returnA -< (x, ys, z)
           decodeFoo =
             KDL.oneOf
               [ Left <$> KDL.valueDecoder @Bool
               , Right <$> KDL.valueDecoder @Text
               ]
+          decodeBaz = proc zType -> do
+            case zType of
+              "int" -> KDL.valueDecoder @Int64 -< ()
+              "bool" -> (\b -> if b then 1 else 0) <$> KDL.valueDecoder @Bool -< ()
+              _ -> KDL.fail -< "Invalid type: " <> zType
           expected =
             KDL.SchemaAnd
               [ KDL.SchemaOne . KDL.NodeNamed "foo" $
@@ -1085,6 +1095,34 @@ schemaSpec = do
                         }
                   , KDL.SchemaAnd []
                   ]
+              , KDL.SchemaOne . KDL.NodeNamed "baz_type" $
+                  KDL.TypedNodeSchema
+                    { typeHint = typeRep $ Proxy @Text
+                    , validTypeAnns = []
+                    , nodeSchema =
+                        KDL.SchemaOne . KDL.NodeArg $
+                          KDL.TypedValueSchema
+                            { typeHint = typeRep $ Proxy @Text
+                            , validTypeAnns = ["text"]
+                            , dataSchema = KDL.SchemaOne KDL.TextSchema
+                            }
+                    }
+              , KDL.SchemaOne . KDL.NodeNamed "baz" $
+                  KDL.TypedNodeSchema
+                    { typeHint = typeRep $ Proxy @Int64
+                    , validTypeAnns = []
+                    , nodeSchema =
+                        KDL.SchemaOne . KDL.NodeArg $
+                          KDL.TypedValueSchema
+                            { typeHint = typeRep $ Proxy @Int64
+                            , validTypeAnns = []
+                            , dataSchema =
+                                KDL.SchemaOr
+                                  [ KDL.SchemaOne KDL.NumberSchema
+                                  , KDL.SchemaOne KDL.BoolSchema
+                                  ]
+                            }
+                    }
               ]
       KDL.documentSchema decoder `shouldBe` expected
 

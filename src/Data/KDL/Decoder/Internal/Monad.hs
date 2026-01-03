@@ -178,7 +178,7 @@ withDecoder decoder f = decoder >>> liftDecodeM f
 --   returnA -< x
 -- @
 fail :: forall b o. Decoder o Text b
-fail = liftDecodeM failM
+fail = Decoder (SchemaOr []) (Trans.lift . failM)
 
 -- | Debug the current state of the object being decoded.
 --
