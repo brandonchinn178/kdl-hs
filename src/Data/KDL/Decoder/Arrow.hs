@@ -740,11 +740,9 @@ validateAnn typeAnns mGivenAnn =
 
 {----- Decoding Node -----}
 
--- | FIXME: document
 withDecodeNode :: forall a r. (DecodeNode a) => ([Text] -> NodeDecoder () a -> r) -> r
 withDecodeNode k = k (validNodeTypeAnns (Proxy @a)) nodeDecoder
 
--- | FIXME: document
 withTypedNodeDecoder ::
   forall a b r.
   (Typeable b) =>

@@ -4,6 +4,8 @@
 
 ## Quickstart
 
+Given a file `config.kdl`:
+
 ```kdl
 package {
   name my-pkg
@@ -15,6 +17,8 @@ package {
   }
 }
 ```
+
+Parse it with `kdl-hs`:
 
 ```hs
 import Data.KDL qualified as KDL

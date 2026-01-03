@@ -19,7 +19,7 @@ package {
 }
 @
 
-Parse it with:
+Parse it with @kdl-hs@:
 
 @
 import Data.KDL qualified as KDL
