@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.1
+
 * Add `KDL.Applicative`
 * Re-export `Control.Arrow` and `Control.Category` from `KDL.Arrow`, for convenience
 
