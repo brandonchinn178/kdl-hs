@@ -4,8 +4,8 @@ This module is intended to be imported qualified as:
 > import KDL qualified
 
 This provides a Monad interface for decoding KDL files, which is sufficient for
-most cases. You may wish to use "KDL.Arrow" if you would like to
-statically analyze a decoder's schema, e.g. to generate documentation.
+most cases. You may wish to use "KDL.Applicative" or "KDL.Arrow" if you would
+like to statically analyze a decoder's schema, e.g. to generate documentation.
 
 = Quickstart
 
@@ -65,6 +65,7 @@ instance KDL.DecodeNode Dep where
 @
 -}
 module KDL (
+  -- * Re-exports
   module X,
 ) where
 

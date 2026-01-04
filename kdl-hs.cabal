@@ -24,6 +24,7 @@ library
   hs-source-dirs: src
   exposed-modules:
     KDL
+    KDL.Applicative
     KDL.Arrow
     KDL.Decoder
     KDL.Decoder.Arrow
@@ -59,6 +60,7 @@ test-suite kdl-tests
   hs-source-dirs: test
   main-is: Main.hs
   other-modules:
+    KDL.ApplicativeSpec
     KDL.ParserSpec
     KDL.Decoder.ArrowSpec
     KDL.Decoder.MonadSpec

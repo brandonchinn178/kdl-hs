@@ -1,5 +1,8 @@
 ## Unreleased
 
+* Add `KDL.Applicative`
+* Re-export `Control.Arrow` and `Control.Category` from `KDL.Arrow`, for convenience
+
 ## v0.2.0
 
 * Remove monad `Decoder` newtype, just give the `Monad` instance to the canonical `Decoder` type and use the same `Decoder` type everywhere

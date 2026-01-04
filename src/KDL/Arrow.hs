@@ -68,9 +68,16 @@ instance KDL.DecodeNode Dep where
 @
 -}
 module KDL.Arrow (
+  -- * KDL re-exports
   module X,
+
+  -- * base re-reexports
+  module Control.Arrow,
+  module Control.Category,
 ) where
 
+import Control.Arrow
+import Control.Category
 import KDL.Decoder.Arrow as X
 import KDL.Decoder.Schema as X
 import KDL.Parser as X

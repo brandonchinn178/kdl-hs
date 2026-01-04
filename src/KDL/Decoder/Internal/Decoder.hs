@@ -144,15 +144,16 @@ instance Alternative (DecodeArrow o a) where
          in go
   many (DecodeArrow sch run) = some (DecodeArrow sch run) <|> pure []
 
-type Decoder o a = DecodeArrow o () a
-
 -- | Eliminates all schema information; avoid whenever possible.
 instance Monad (DecodeArrow o a) where
+  return = pure
   DecodeArrow _ run1 >>= k =
     DecodeArrow SchemaUnknown $ \a -> do
       x <- run1 a
       let DecodeArrow _ run2 = k x
       run2 a
+
+type Decoder o a = DecodeArrow o () a
 
 liftDecodeM :: (a -> DecodeM b) -> DecodeArrow o a b
 liftDecodeM f = DecodeArrow (SchemaAnd []) (Trans.lift . f)
