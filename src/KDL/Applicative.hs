@@ -75,8 +75,7 @@ class NoBind a where
   --
   -- It seems like QualifiedDo still needs a definition for this, even with
   -- ApplicativeDo enabled.
-  --
-  -- https://discourse.haskell.org/t/qualifieddo-applicativedo-still-requires/13491
+  -- https://gitlab.haskell.org/ghc/ghc/-/issues/26723
   (>>=) :: a
 instance (GHC.Unsatisfiable (GHC.Text ">>= is not allowed in a KDL.do block")) => NoBind a where
   (>>=) = GHC.unsatisfiable
