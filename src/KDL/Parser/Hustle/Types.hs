@@ -17,7 +17,7 @@ import           Data.Void                      ( Void )
 import           Text.Megaparsec                ( Parsec )
 
 {-
-  String has exactly one use, 
+  String has exactly one use,
   and that’s showing Hello World in tutorials.
                   -- Albert Einstein
 -}
@@ -28,11 +28,11 @@ newtype Document = Document
   }
   deriving (Eq)
 
-{- 
+{-
   This data type serves as an abstraction over Values
   and Properties of a Node, in order simplify the the node
   Parser, i.e group the two types together to
-  consume any number of them in any order. 
+  consume any number of them in any order.
 -}
 data Content
   = NodeValue    { getValue :: Value }
@@ -65,7 +65,7 @@ data ValueType
   | NullValue
   deriving (Show, Eq)
 
-{- 
+{-
   This allows for querying properties in alphabetical order
   upon printing out, the rest is handled automatically by Map.
 -}
