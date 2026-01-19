@@ -69,6 +69,7 @@ test-suite kdl-tests
   build-depends:
       base
     , containers
+    , filepath
     , kdl-hs
     , skeletest
     , temporary

@@ -1,5 +1,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NoFieldSelectors #-}
@@ -12,6 +13,7 @@ module KDL.Decoder.Internal.Error (
   renderDecodeError,
 ) where
 
+import Control.Applicative ((<|>))
 import Data.Map qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -24,12 +26,15 @@ import KDL.Types (
   Value,
  )
 
-data DecodeError = DecodeError [(Context, BaseDecodeError)]
+data DecodeError = DecodeError
+  { filepath :: Maybe FilePath
+  , errors :: [(Context, BaseDecodeError)]
+  }
   deriving (Show, Eq)
 instance Semigroup DecodeError where
-  DecodeError e1 <> DecodeError e2 = DecodeError (e1 <> e2)
+  DecodeError fp1 e1 <> DecodeError fp2 e2 = DecodeError (fp1 <|> fp2) (e1 <> e2)
 instance Monoid DecodeError where
-  mempty = DecodeError []
+  mempty = DecodeError Nothing []
 
 type Context = [ContextItem]
 
@@ -60,10 +65,19 @@ data BaseDecodeError
   deriving (Show, Eq)
 
 renderDecodeError :: DecodeError -> Text
-renderDecodeError = Text.intercalate "\n" . map renderCtxErrors . groupCtxErrors
+renderDecodeError decodeError =
+  Text.intercalate "\n"
+    . addPath decodeError.filepath
+    . map renderCtxErrors
+    . groupCtxErrors
+    $ decodeError.errors
  where
   -- Group errors with the same contexts together
-  groupCtxErrors (DecodeError es) = Map.toAscList $ Map.fromListWith (<>) [(ctx, [e]) | (ctx, e) <- es]
+  groupCtxErrors es = Map.toAscList $ Map.fromListWith (<>) [(ctx, [e]) | (ctx, e) <- es]
+
+  addPath = \case
+    Nothing -> id
+    Just fp -> let msg = "Failed to decode " <> Text.pack fp <> ":" in (msg :)
 
   renderCtxErrors = \case
     -- Special case parse errors, which shouldn't have a context
