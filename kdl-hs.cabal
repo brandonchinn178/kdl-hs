@@ -61,9 +61,11 @@ test-suite kdl-tests
   main-is: Main.hs
   other-modules:
     KDL.ApplicativeSpec
-    KDL.ParserSpec
+    KDL.DecoderSpec
     KDL.Decoder.ArrowSpec
     KDL.Decoder.MonadSpec
+    KDL.ParserSpec
+    KDL.TestUtils.Error
   build-depends:
       base
     , containers
