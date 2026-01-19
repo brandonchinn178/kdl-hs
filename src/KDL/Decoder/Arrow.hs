@@ -92,6 +92,7 @@ import Control.Monad (unless, when)
 import Control.Monad.Trans.Class qualified as Trans
 import Control.Monad.Trans.State.Strict (StateT)
 import Control.Monad.Trans.State.Strict qualified as StateT
+import Data.Bifunctor (first)
 import Data.Bits (finiteBitSize)
 import Data.Int (Int64)
 import Data.List (partition)
@@ -134,11 +135,11 @@ import Prelude qualified
 
 -- | Decode the given KDL configuration with the given decoder.
 decodeWith :: DocumentDecoder a -> Text -> Either DecodeError a
-decodeWith decoder = decodeFromParseResult decoder . parse
+decodeWith decoder = decodeFromParseResult decoder Nothing . parse
 
 -- | Read KDL configuration from the given file path and decode it with the given decoder.
 decodeFileWith :: DocumentDecoder a -> FilePath -> IO (Either DecodeError a)
-decodeFileWith decoder = fmap (decodeFromParseResult decoder) . parseFile
+decodeFileWith decoder fp = decodeFromParseResult decoder (Just fp) <$> parseFile fp
 
 -- | Decode an already-parsed 'Document' with the given decoder.
 decodeDocWith :: DocumentDecoder a -> Document -> Either DecodeError a
@@ -146,10 +147,15 @@ decodeDocWith (UnsafeDocumentDecoder decoder) doc =
   runDecodeM . runDecodeStateM doc emptyDecodeHistory $
     decoder.run ()
 
-decodeFromParseResult :: DocumentDecoder a -> Either Text Document -> Either DecodeError a
-decodeFromParseResult decoder = \case
-  Left e -> runDecodeM . decodeThrow $ DecodeError_ParseError e
-  Right doc -> decodeDocWith decoder doc
+decodeFromParseResult ::
+  DocumentDecoder a ->
+  Maybe FilePath ->
+  Either Text Document ->
+  Either DecodeError a
+decodeFromParseResult decoder mPath =
+  first (\e -> e{filepath = mPath}) . \case
+    Left e -> runDecodeM . decodeThrow $ DecodeError_ParseError e
+    Right doc -> decodeDocWith decoder doc
 
 {----- Decoder -----}
 

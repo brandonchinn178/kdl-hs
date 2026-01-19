@@ -1,5 +1,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NoFieldSelectors #-}
@@ -70,7 +71,7 @@ runDecodeM (DecodeM f) = f Left Left Right
 -- This error is non-fatal and can be handled by '<|>'. See 'makeFatal'
 -- for more information.
 decodeThrow :: BaseDecodeError -> DecodeM a
-decodeThrow e = DecodeM $ \_ onFail _ -> onFail $ DecodeError [([], e)]
+decodeThrow e = DecodeM $ \_ onFail _ -> onFail $ DecodeError Nothing [([], e)]
 
 -- | Throw a 'DecodeError_Custom' error.
 failM :: Text -> DecodeM a
@@ -91,4 +92,4 @@ makeNonFatal (DecodeM f) = DecodeM $ \_ onFail onSuccess -> f onFail onFail onSu
 addContext :: ContextItem -> DecodeM a -> DecodeM a
 addContext ctxItem (DecodeM f) = DecodeM $ \onFatal onFail onSuccess -> f (onFatal . addCtx) (onFail . addCtx) onSuccess
  where
-  addCtx (DecodeError es) = DecodeError [(ctxItem : ctx, msg) | (ctx, msg) <- es]
+  addCtx e = e{errors = [(ctxItem : ctx, msg) | (ctx, msg) <- e.errors]}
