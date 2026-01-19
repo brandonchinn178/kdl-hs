@@ -65,8 +65,10 @@ renderDecodeError = Text.intercalate "\n" . map renderCtxErrors . groupCtxErrors
   -- Group errors with the same contexts together
   groupCtxErrors (DecodeError es) = Map.toAscList $ Map.fromListWith (<>) [(ctx, [e]) | (ctx, e) <- es]
 
-  renderCtxErrors (ctx, errs) =
-    Text.intercalate "\n" $ ("At: " <> renderCtxItems ctx) : renderErrors errs
+  renderCtxErrors = \case
+    -- Special case parse errors, which shouldn't have a context
+    (_, [DecodeError_ParseError msg]) -> msg
+    (ctx, errs) -> Text.intercalate "\n" $ ("At: " <> renderCtxItems ctx) : renderErrors errs
 
   renderCtxItems items
     | null items = "<root>"

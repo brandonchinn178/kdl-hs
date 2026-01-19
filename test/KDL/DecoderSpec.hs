@@ -18,13 +18,12 @@ spec = do
           decoder = KDL.document $ KDL.node @Node "foo"
       KDL.decodeWith decoder config
         `shouldSatisfy` decodeErrorMsg
-          [ "At: <root>"
-          , "  1:10:"
-          , "    |"
-          , "  1 | foo hello= 123"
-          , "    |          ^^"
-          , "  unexpected \"= \""
-          , "  expecting Node Child, Node Space, or Node Terminator"
+          [ "1:10:"
+          , "  |"
+          , "1 | foo hello= 123"
+          , "  |          ^^"
+          , "unexpected \"= \""
+          , "expecting Node Child, Node Space, or Node Terminator"
           ]
 
     it "fails with user-defined error" $ do
