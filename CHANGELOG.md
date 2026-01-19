@@ -1,5 +1,8 @@
 ## Unreleased
 
+* Improve rendering parse errors
+* Include filepath in error messages when `decodeFileWith` fails
+
 ## v0.2.1
 
 * Add `KDL.Applicative`
