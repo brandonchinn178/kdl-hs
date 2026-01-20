@@ -60,7 +60,7 @@ jobs:
                ${{ runner.os }}-cabal-cache-${{ env.CURR_MONTH }}-${{ matrix.ghc_version }}-
       -
         name: Build + Test
-        run: cabal test
+        run: cabal exec cabal test
 
   lint:
     runs-on: ubuntu-latest
