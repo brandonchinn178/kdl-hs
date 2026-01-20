@@ -99,9 +99,9 @@ data NodeList = NodeList
 
 data NodeListFormat = NodeListFormat
   { leading :: Text
-  -- ^ Whitespace and comments preceding the document's first node.
+  -- ^ Whitespace and comments preceding the first node.
   , trailing :: Text
-  -- ^ Whitespace and comments following the document's last node.
+  -- ^ Whitespace and comments following the last node.
   }
   deriving (Show, Eq)
 
@@ -341,6 +341,9 @@ data ValueData
   = Text Text
   | Number Scientific
   | Bool Bool
+  | Inf
+  | NegInf
+  | NaN
   | Null
   deriving (Show, Eq)
 

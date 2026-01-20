@@ -104,6 +104,9 @@ renderValueData = \case
   Text s -> renderString s
   Number x -> (Text.pack . show) x
   Bool b -> if b then "#true" else "#false"
+  Inf -> "#inf"
+  NegInf -> "#-inf"
+  NaN -> "#nan"
   Null -> "#null"
  where
   renderString s = if isPlainIdent s then s else "\"" <> Text.concatMap escapeChar s <> "\""
