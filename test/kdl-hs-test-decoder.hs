@@ -59,6 +59,9 @@ encodeValueData = \case
   KDL.Text s -> val "string" (Text.unpack s)
   KDL.Number x -> val "number" (Scientific.formatScientific Scientific.Fixed Nothing x)
   KDL.Bool x -> val "boolean" (if x then "true" else "false")
+  KDL.Inf -> val "number" "inf"
+  KDL.NegInf -> val "number" "-inf"
+  KDL.NaN -> val "number" "nan"
   KDL.Null -> Aeson.object ["type" .= Text.pack "null"]
  where
   val :: String -> String -> Aeson.Value
