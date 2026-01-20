@@ -1,0 +1,54 @@
+#!/usr/bin/env dotslash
+{
+  "name": "kdl-test-0.2.0",
+  "platforms": {
+    "linux-x86_64": {
+      "size": 583741,
+      "hash": "sha256",
+      "digest": "1627ea50594c7c322ed5c7fb0d0063b2ac20a7a9460acc9363fa1777c92364c3",
+      "format": "tar.gz",
+      "path": "kdl-test",
+      "providers": [
+        {
+          "url": "https://github.com/brandonchinn178/kdl-test/releases/download/v0.2.0/kdl-test-0.2.0-linux-x86_64.tar.gz"
+        }
+      ]
+    },
+    "linux-aarch64": {
+      "size": 568646,
+      "hash": "sha256",
+      "digest": "f3ecbdb2225b6abc0d69a451be76eca4d095d835ee2e7830a880b4bfa051e6ee",
+      "format": "tar.gz",
+      "path": "kdl-test",
+      "providers": [
+        {
+          "url": "https://github.com/brandonchinn178/kdl-test/releases/download/v0.2.0/kdl-test-0.2.0-linux-arm64.tar.gz"
+        }
+      ]
+    },
+    "macos-x86_64": {
+      "size": 555773,
+      "hash": "sha256",
+      "digest": "2d66b5409889992554dbd9bf04c2817552b2c0416a2793204e2e4eea06bc4da4",
+      "format": "tar.gz",
+      "path": "kdl-test",
+      "providers": [
+        {
+          "url": "https://github.com/brandonchinn178/kdl-test/releases/download/v0.2.0/kdl-test-0.2.0-darwin-x86_64.tar.gz"
+        }
+      ]
+    },
+    "macos-aarch64": {
+      "size": 529715,
+      "hash": "sha256",
+      "digest": "abfcade1d1ce02810dc155b95ef0720e9c679d62cf50c7ab5400741909978eb2",
+      "format": "tar.gz",
+      "path": "kdl-test",
+      "providers": [
+        {
+          "url": "https://github.com/brandonchinn178/kdl-test/releases/download/v0.2.0/kdl-test-0.2.0-darwin-arm64.tar.gz"
+        }
+      ]
+    }
+  }
+}

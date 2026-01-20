@@ -53,10 +53,25 @@ library
   default-language: GHC2021
   ghc-options: -Wall -Wcompat
 
+executable kdl-hs-test-decoder
+  main-is: test/kdl-hs-test-decoder.hs
+  build-depends:
+      base < 5
+    , aeson
+    , bytestring
+    , containers
+    , kdl-hs
+    , scientific
+    , text
+  default-language: GHC2021
+  ghc-options: -Wall -Wcompat
+
 test-suite kdl-tests
   type: exitcode-stdio-1.0
   ghc-options: -F -pgmF=skeletest-preprocessor
-  build-tool-depends: skeletest:skeletest-preprocessor
+  build-tool-depends:
+    , skeletest:skeletest-preprocessor
+    , kdl-hs:kdl-hs-test-decoder
   hs-source-dirs: test
   main-is: Main.hs
   other-modules:
@@ -69,8 +84,10 @@ test-suite kdl-tests
   build-depends:
       base
     , containers
+    , directory
     , filepath
     , kdl-hs
+    , process
     , skeletest
     , temporary
     , text
