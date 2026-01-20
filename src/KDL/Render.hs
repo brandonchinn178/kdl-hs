@@ -54,11 +54,11 @@ renderNode Node{..} =
     , maybe "" renderAnn ann
     , renderIdentifier name
     , foldMap renderEntry entries
-    , maybe "" (.before_children) format
+    , maybe "" (.beforeChildren) format
     , case children of
         Nothing -> ""
         Just nodes -> "{" <> renderNodeList nodes <> "}"
-    , maybe "" (.before_terminator) format
+    , maybe "" (.beforeTerminator) format
     , maybe "" (.terminator) format
     , maybe "" (.trailing) format
     ]
@@ -72,9 +72,9 @@ renderEntry Entry{..} =
         Just nameId ->
           Text.concat
             [ renderIdentifier nameId
-            , maybe "" (.after_key) format
+            , maybe "" (.afterKey) format
             , "="
-            , maybe "" (.after_eq) format
+            , maybe "" (.afterEq) format
             , renderValue value
             ]
     , maybe "" (.trailing) format
@@ -85,9 +85,9 @@ renderAnn Ann{..} =
   Text.concat
     [ maybe "" (.leading) format
     , "("
-    , maybe "" (.before_id) format
+    , maybe "" (.beforeId) format
     , renderIdentifier identifier
-    , maybe "" (.after_id) format
+    , maybe "" (.afterId) format
     , ")"
     , maybe "" (.trailing) format
     ]
@@ -104,6 +104,9 @@ renderValueData = \case
   Text s -> renderString s
   Number x -> (Text.pack . show) x
   Bool b -> if b then "#true" else "#false"
+  Inf -> "#inf"
+  NegInf -> "#-inf"
+  NaN -> "#nan"
   Null -> "#null"
  where
   renderString s = if isPlainIdent s then s else "\"" <> Text.concatMap escapeChar s <> "\""

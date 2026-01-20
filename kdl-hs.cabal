@@ -34,14 +34,9 @@ library
     KDL.Decoder.Monad
     KDL.Decoder.Schema
     KDL.Parser
+    KDL.Parser.Internal
     KDL.Render
     KDL.Types
-  other-modules:
-    KDL.Parser.Hustle
-    KDL.Parser.Hustle.Formatter
-    KDL.Parser.Hustle.Internal
-    KDL.Parser.Hustle.Parser
-    KDL.Parser.Hustle.Types
   build-depends:
       base < 5
     , containers
@@ -88,6 +83,7 @@ test-suite kdl-tests
     , filepath
     , kdl-hs
     , process
+    , scientific
     , skeletest
     , temporary
     , text
