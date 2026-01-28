@@ -7,6 +7,9 @@ module KDL.Render (
   render,
 
   -- * Rendering components
+  renderNodeList,
+  renderNode,
+  renderEntry,
   renderAnn,
   renderValue,
   renderValueData,
@@ -20,16 +23,62 @@ import KDL.Types (
   Ann (..),
   AnnFormat (..),
   Document,
+  Entry (..),
+  EntryFormat (..),
   Identifier (..),
   IdentifierFormat (..),
+  Node (..),
+  NodeFormat (..),
+  NodeList (..),
+  NodeListFormat (..),
   Value (..),
   ValueData (..),
   ValueFormat (..),
  )
 
--- TODO: Implement render after parsing Document with formatting information
 render :: Document -> Text
-render = error "render is not implemented yet"
+render = renderNodeList
+
+renderNodeList :: NodeList -> Text
+renderNodeList NodeList{..} =
+  Text.concat
+    [ maybe "" (.leading) format
+    , foldMap renderNode nodes
+    , maybe "" (.trailing) format
+    ]
+
+renderNode :: Node -> Text
+renderNode Node{..} =
+  Text.concat
+    [ maybe "" (.leading) format
+    , maybe "" renderAnn ann
+    , renderIdentifier name
+    , foldMap renderEntry entries
+    , maybe "" (.before_children) format
+    , case children of
+        Nothing -> ""
+        Just nodes -> "{" <> renderNodeList nodes <> "}"
+    , maybe "" (.before_terminator) format
+    , maybe "" (.terminator) format
+    , maybe "" (.trailing) format
+    ]
+
+renderEntry :: Entry -> Text
+renderEntry Entry{..} =
+  Text.concat
+    [ maybe "" (.leading) format
+    , case name of
+        Nothing -> renderValue value
+        Just nameId ->
+          Text.concat
+            [ renderIdentifier nameId
+            , maybe "" (.after_key) format
+            , "="
+            , maybe "" (.after_eq) format
+            , renderValue value
+            ]
+    , maybe "" (.trailing) format
+    ]
 
 renderAnn :: Ann -> Text
 renderAnn Ann{..} =
