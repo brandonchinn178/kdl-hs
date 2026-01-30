@@ -4,19 +4,8 @@
 module KDL.ParserSpec (spec) where
 
 import Control.Monad (forM_)
-import Data.Text (Text)
-import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import KDL qualified
-import KDL.Parser
-import KDL.Types (
-  Entry (..),
-  Identifier (..),
-  Node (..),
-  NodeList (..),
-  Value (..),
-  ValueData (..),
- )
 import Skeletest
 import Skeletest.Predicate qualified as P
 import System.Directory (findExecutable, listDirectory)
@@ -26,52 +15,29 @@ import System.Process (callProcess)
 
 spec :: Spec
 spec = do
+  let exampleConfig = "foo hello=world 1.0 { bar; }"
+
   describe "parse" $ do
     it "parses a KDL document" $ do
-      let expected =
-            newNodeList
-              [ newNode
-                  "foo"
-                  [ newArg $ Number 1.0
-                  , newProp "hello" $ Text "world"
-                  ]
-                  ( Just
-                      [ newNode "bar" [] (Just [])
-                      ]
-                  )
-              ]
-      parse "foo hello=world 1.0 { bar; }" `shouldBe` Right expected
+      KDL.parse exampleConfig `shouldSatisfy` P.right P.matchesSnapshot
 
-    it "returns a textual error on parse failure" $ do
-      let msg =
-            Text.intercalate "\n" $
-              [ "1:10:"
-              , "  |"
-              , "1 | foo hello= 123"
-              , "  |          ^^"
-              , "unexpected \"= \""
-              , "expecting Node Child, Node Space, or Node Terminator"
-              ]
-      parse "foo hello= 123" `shouldBe` Left msg
+    describe "error messages" $ do
+      let test msg input = do
+            it msg $ KDL.parse input `shouldSatisfy` P.left P.matchesSnapshot
 
+      -- TODO: add more
+      test "Unquoted numeric prop name" "foo 123=123"
+
+  -- Most behavior tested in `parse` tests
   describe "parseFile" $ do
     it "parses a KDL document from a filepath" $ do
       withSystemTempDirectory "" $ \tmpdir -> do
         let file = tmpdir ++ "/test.kdl"
-        writeFile file "foo hello=world 1.0 { bar; }"
-        let expected =
-              newNodeList
-                [ newNode
-                    "foo"
-                    [ newArg $ Number 1.0
-                    , newProp "hello" $ Text "world"
-                    ]
-                    ( Just
-                        [ newNode "bar" [] (Just [])
-                        ]
-                    )
-                ]
-        parseFile file `shouldSatisfy` P.returns (P.right (P.eq expected))
+        Text.writeFile file exampleConfig
+        Right actual <- KDL.parseFile file
+        Right expected <- pure $ KDL.parse exampleConfig
+        -- tested in `parse`
+        actual `shouldBe` expected
 
   describe "kdl-test examples" $ do
     it "decodes correctly" $ do
@@ -87,48 +53,3 @@ spec = do
         context file $ do
           content <- Text.readFile (dir </> "valid" </> file)
           (fmap KDL.render . KDL.parse) content `shouldBe` Right content
-
-{----- Helpers -----}
-
-newNodeList :: [Node] -> NodeList
-newNodeList nodes =
-  NodeList
-    { nodes = nodes
-    , format = Nothing
-    }
-
-newNode :: Text -> [Entry] -> Maybe [Node] -> Node
-newNode name entries children =
-  Node
-    { ann = Nothing
-    , name = newIdentifier name
-    , entries = entries
-    , children = newNodeList <$> children
-    , format = Nothing
-    }
-
-newArg :: ValueData -> Entry
-newArg = newEntry Nothing
-
-newProp :: Text -> ValueData -> Entry
-newProp = newEntry . Just
-
-newEntry :: Maybe Text -> ValueData -> Entry
-newEntry mName data_ =
-  Entry
-    { name = newIdentifier <$> mName
-    , value =
-        Value
-          { ann = Nothing
-          , data_ = data_
-          , format = Nothing
-          }
-    , format = Nothing
-    }
-
-newIdentifier :: Text -> Identifier
-newIdentifier value =
-  Identifier
-    { value = value
-    , format = Nothing
-    }
