@@ -59,8 +59,16 @@ jobs:
           restore-keys: |
                ${{ runner.os }}-cabal-cache-${{ env.CURR_MONTH }}-${{ matrix.ghc_version }}-
       -
-        name: Build + Test
-        run: cabal test
+        name: Build
+        run: cabal build
+      -
+        name: Install dotslash
+        run: >
+          curl -fsSL https://github.com/facebook/dotslash/releases/latest/download/dotslash-ubuntu-22.04.$(uname -m).tar.gz
+          | tar xzf - -C /usr/local/bin/
+      -
+        name: Test
+        run: cabal exec cabal test
 
   lint:
     runs-on: ubuntu-latest

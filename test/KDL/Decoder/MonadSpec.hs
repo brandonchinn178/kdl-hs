@@ -8,6 +8,7 @@ import Data.Map qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
 import KDL qualified
+import KDL.TestUtils.AST (scrubFormat)
 import KDL.TestUtils.Error (decodeErrorMsg)
 import KDL.Types (
   Entry (..),
@@ -32,7 +33,7 @@ apiSpec = do
       it "decodes a node" $ do
         let config = "foo 1.0"
             decoder = KDL.document $ do
-              KDL.node "foo"
+              scrubFormat <$> KDL.node "foo"
             expected =
               Node
                 { ann = Nothing
@@ -44,7 +45,7 @@ apiSpec = do
                         , format = Nothing
                         }
                     ]
-                , children = Just NodeList{nodes = [], format = Nothing}
+                , children = Nothing
                 , format = Nothing
                 }
         KDL.decodeWith decoder config `shouldBe` Right expected
@@ -52,14 +53,14 @@ apiSpec = do
       it "decodes multiple nodes" $ do
         let config = "foo; foo"
             decoder = KDL.document $ do
-              KDL.many $ KDL.node "foo"
+              fmap (map scrubFormat) . KDL.many $ KDL.node "foo"
             expected = [fooNode, fooNode]
             fooNode =
               Node
                 { ann = Nothing
                 , name = Identifier{value = "foo", format = Nothing}
                 , entries = []
-                , children = Just NodeList{nodes = [], format = Nothing}
+                , children = Nothing
                 , format = Nothing
                 }
         KDL.decodeWith decoder config `shouldBe` Right expected
@@ -67,8 +68,8 @@ apiSpec = do
       it "decodes nodes in any order" $ do
         let config = "foo; bar"
             decoder = KDL.document $ do
-              bar <- KDL.node "bar"
-              foo <- KDL.node "foo"
+              bar <- scrubFormat <$> KDL.node "bar"
+              foo <- scrubFormat <$> KDL.node "foo"
               pure (bar, foo)
             expected = (node "bar", node "foo")
             node name =
@@ -76,7 +77,7 @@ apiSpec = do
                 { ann = Nothing
                 , name = Identifier{value = name, format = Nothing}
                 , entries = []
-                , children = Just NodeList{nodes = [], format = Nothing}
+                , children = Nothing
                 , format = Nothing
                 }
         KDL.decodeWith decoder config `shouldBe` Right expected
@@ -84,8 +85,8 @@ apiSpec = do
       it "fails when not enough nodes" $ do
         let config = "foo"
             decoder = KDL.document $ do
-              foo1 <- KDL.node @Node "foo"
-              foo2 <- KDL.node @Node "foo"
+              foo1 <- scrubFormat <$> KDL.node @Node "foo"
+              foo2 <- scrubFormat <$> KDL.node @Node "foo"
               pure (foo1, foo2)
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
@@ -96,7 +97,7 @@ apiSpec = do
     -- Most behaviors tested with `node`
     describe "nodeWith" $ do
       it "decodes a node" $ do
-        let config = "foo 1.0 { hello \"world\"; }"
+        let config = "foo 1.0 { hello world; }"
             decodeFoo = do
               arg <- KDL.arg @Int
               child <- KDL.children $ KDL.argAt @Text "hello"
@@ -158,7 +159,7 @@ apiSpec = do
         let config = "foo 1.0; foo 2.0; bar"
             decoder = KDL.document $ do
               _ <- KDL.node @Node "foo"
-              KDL.remainingNodes
+              fmap (map scrubFormat) <$> KDL.remainingNodes
             expected =
               Map.fromList
                 [ ("foo", [fooNode2])
@@ -175,7 +176,7 @@ apiSpec = do
                         , format = Nothing
                         }
                     ]
-                , children = Just NodeList{nodes = [], format = Nothing}
+                , children = Nothing
                 , format = Nothing
                 }
             barNode =
@@ -183,7 +184,7 @@ apiSpec = do
                 { ann = Nothing
                 , name = Identifier{value = "bar", format = Nothing}
                 , entries = []
-                , children = Just NodeList{nodes = [], format = Nothing}
+                , children = Nothing
                 , format = Nothing
                 }
         KDL.decodeWith decoder config `shouldBe` Right expected
@@ -205,7 +206,7 @@ apiSpec = do
         KDL.decodeWith decoder config `shouldBe` Right expected
 
       it "fails when node fails to parse" $ do
-        let config = "foo 1; bar 1; bar \"hello\""
+        let config = "foo 1; bar 1; bar hello"
             decodeNode = do
               KDL.arg @Int
             decoder = KDL.document $ do
@@ -256,7 +257,7 @@ apiSpec = do
 
     describe "argAt" $ do
       it "gets argument at a node" $ do
-        let config = "foo \"bar\"; hello \"world\""
+        let config = "foo bar; hello world"
             decoder = KDL.document $ do
               hello <- KDL.argAt @Text "hello"
               foo <- KDL.argAt @Text "foo"
@@ -357,7 +358,7 @@ apiSpec = do
         KDL.decodeWith decoder config `shouldBe` Right []
 
       it "fails if any arg fails to parse" $ do
-        let config = "foo 1 \"asdf\""
+        let config = "foo 1 asdf"
             decoder = KDL.document $ do
               KDL.argsAt @Int "foo"
         KDL.decodeWith decoder config
@@ -450,7 +451,7 @@ apiSpec = do
             ]
 
       it "fails if any child fails to parse" $ do
-        let config = "foo { - 1; - \"asdf\"; }"
+        let config = "foo { - 1; - asdf; }"
             decoder = KDL.document $ do
               KDL.dashChildrenAt @Int "foo"
         KDL.decodeWith decoder config
@@ -507,14 +508,17 @@ apiSpec = do
       it "gets dash nodes at a node" $ do
         let config = "foo { - { bar; }; - { baz; }; }"
             decoder = KDL.document $ do
-              KDL.dashNodesAt "foo"
+              map scrubFormat <$> KDL.dashNodesAt "foo"
             expected = [node "-" [node "bar" []], node "-" [node "baz" []]]
             node name children =
               Node
                 { ann = Nothing
                 , name = Identifier{value = name, format = Nothing}
                 , entries = []
-                , children = Just NodeList{nodes = children, format = Nothing}
+                , children =
+                    if null children
+                      then Nothing
+                      else Just NodeList{nodes = children, format = Nothing}
                 , format = Nothing
                 }
         KDL.decodeWith decoder config `shouldBe` Right expected
@@ -544,7 +548,7 @@ apiSpec = do
     -- Most behaviors tested with `dashNodesAt`
     describe "dashNodesAtWith" $ do
       it "gets dash nodes at a node" $ do
-        let config = "foo { - 1 { bar \"hello\"; }; - 2 { bar \"world\"; }; }"
+        let config = "foo { - 1 { bar hello; }; - 2 { bar world; }; }"
             decodeChild = do
               arg <- KDL.arg @Int
               child <- KDL.children $ KDL.nodeWith "bar" $ KDL.arg @Text
@@ -554,7 +558,7 @@ apiSpec = do
         KDL.decodeWith decoder config `shouldBe` Right [(1, "hello"), (2, "world")]
 
       it "fails if any child fails to parse" $ do
-        let config = "foo { - { bar 1; }; - { bar \"test\"; }; }"
+        let config = "foo { - { bar 1; }; - { bar test; }; }"
             decoder = KDL.document $ do
               KDL.dashNodesAtWith "foo" $ KDL.children $ KDL.argAt @Int "bar"
         KDL.decodeWith decoder config
@@ -573,7 +577,7 @@ apiSpec = do
 
     describe "arg" $ do
       it "decodes an argument" $ do
-        let config = "foo 1 \"bar\""
+        let config = "foo 1 bar"
             decoder = do
               arg1 <- KDL.arg @Int
               arg2 <- KDL.arg @Text
@@ -597,7 +601,7 @@ apiSpec = do
             ]
 
       it "fails if argument fails to parse" $ do
-        let config = "foo \"test\""
+        let config = "foo test"
             decoder = do
               KDL.arg @Int
         decodeNode "foo" decoder config
@@ -619,7 +623,7 @@ apiSpec = do
     -- Most behaviors tested with `arg`
     describe "argWith" $ do
       it "decodes an argument" $ do
-        let config = "foo \"bar\""
+        let config = "foo bar"
             decoder = do
               KDL.argWith KDL.text
         decodeNode "foo" decoder config `shouldBe` Right "bar"
@@ -662,7 +666,7 @@ apiSpec = do
 
     describe "prop" $ do
       it "decodes a prop" $ do
-        let config = "foo test1=1 test2=\"hello\""
+        let config = "foo test1=1 test2=hello"
             decoder = do
               prop1 <- KDL.prop @Text "test2"
               prop2 <- KDL.prop @Int "test1"
@@ -836,7 +840,7 @@ apiSpec = do
       it "decodes children" $ do
         let config = "foo { bar test; }"
             decoder = do
-              KDL.children $ KDL.node @Node "bar"
+              fmap scrubFormat . KDL.children $ KDL.node @Node "bar"
             expected =
               Node
                 { ann = Nothing
@@ -848,7 +852,7 @@ apiSpec = do
                         , format = Nothing
                         }
                     ]
-                , children = Just NodeList{nodes = [], format = Nothing}
+                , children = Nothing
                 , format = Nothing
                 }
         decodeNode "foo" decoder config `shouldBe` Right expected
@@ -876,7 +880,7 @@ apiSpec = do
       it "decodes any value" $ do
         let config = "foo 1.0 asdf #true"
             decoder = KDL.document $ do
-              KDL.argsAtWith "foo" KDL.any
+              map scrubFormat <$> KDL.argsAtWith "foo" KDL.any
             val data_ =
               Value
                 { ann = Nothing

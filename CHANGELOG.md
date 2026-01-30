@@ -1,5 +1,6 @@
 ## Unreleased
 
+* Implement KDL v2 parser
 * Implement `KDL.render`, which is format-preserving
 * Improve rendering parse errors
 * Include filepath in error messages when `decodeFileWith` fails

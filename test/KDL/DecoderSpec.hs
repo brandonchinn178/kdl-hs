@@ -59,16 +59,16 @@ spec = do
   describe "decodeFileWith" $ do
     it "fails with helpful error if parsing fails" $ do
       FixtureKdlFile file <- getFixture
-      writeFile file "foo hello= 123"
+      writeFile file "foo 123=123"
       let decoder = KDL.document $ KDL.node @Node "foo"
       KDL.decodeFileWith decoder file
         `shouldSatisfy` (P.returns . decodeErrorMsg)
           [ "Failed to decode " <> Text.pack file <> ":"
           , "1:10:"
           , "  |"
-          , "1 | foo hello= 123"
-          , "  |          ^^"
-          , "unexpected \"= \""
+          , "1 | foo 123=123"
+          , "  |     ^^^"
+          , "unexpected \"123\""
           , "expecting Node Child, Node Space, or Node Terminator"
           ]
 
