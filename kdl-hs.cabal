@@ -76,6 +76,7 @@ test-suite kdl-tests
     KDL.Decoder.ArrowSpec
     KDL.Decoder.MonadSpec
     KDL.ParserSpec
+    KDL.TestUtils.AST
     KDL.TestUtils.Error
   build-depends:
       base
