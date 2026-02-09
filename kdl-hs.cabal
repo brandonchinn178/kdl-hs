@@ -15,6 +15,8 @@ build-type: Simple
 extra-source-files:
   README.md
   CHANGELOG.md
+  test/KDL/__snapshots__/DecoderSpec.snap.md
+  test/KDL/__snapshots__/ParserSpec.snap.md
 
 source-repository head
   type: git
@@ -34,14 +36,9 @@ library
     KDL.Decoder.Monad
     KDL.Decoder.Schema
     KDL.Parser
+    KDL.Parser.Internal
     KDL.Render
     KDL.Types
-  other-modules:
-    KDL.Parser.Hustle
-    KDL.Parser.Hustle.Formatter
-    KDL.Parser.Hustle.Internal
-    KDL.Parser.Hustle.Parser
-    KDL.Parser.Hustle.Types
   build-depends:
       base < 5
     , containers
@@ -53,10 +50,25 @@ library
   default-language: GHC2021
   ghc-options: -Wall -Wcompat
 
+executable kdl-hs-test-decoder
+  main-is: test/kdl-hs-test-decoder.hs
+  build-depends:
+      base < 5
+    , aeson
+    , bytestring
+    , containers
+    , kdl-hs
+    , scientific
+    , text
+  default-language: GHC2021
+  ghc-options: -Wall -Wcompat
+
 test-suite kdl-tests
   type: exitcode-stdio-1.0
   ghc-options: -F -pgmF=skeletest-preprocessor
-  build-tool-depends: skeletest:skeletest-preprocessor
+  build-tool-depends:
+    , skeletest:skeletest-preprocessor
+    , kdl-hs:kdl-hs-test-decoder
   hs-source-dirs: test
   main-is: Main.hs
   other-modules:
@@ -65,12 +77,17 @@ test-suite kdl-tests
     KDL.Decoder.ArrowSpec
     KDL.Decoder.MonadSpec
     KDL.ParserSpec
+    KDL.TestUtils.AST
     KDL.TestUtils.Error
   build-depends:
       base
     , containers
+    , directory
     , filepath
     , kdl-hs
+    , pretty-show
+    , process
+    , scientific
     , skeletest
     , temporary
     , text

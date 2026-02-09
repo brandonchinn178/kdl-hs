@@ -67,22 +67,22 @@ data BaseDecodeError
 renderDecodeError :: DecodeError -> Text
 renderDecodeError decodeError =
   Text.intercalate "\n"
-    . addPath decodeError.filepath
-    . map renderCtxErrors
+    . concatMap renderCtxErrors
     . groupCtxErrors
     $ decodeError.errors
  where
   -- Group errors with the same contexts together
   groupCtxErrors es = Map.toAscList $ Map.fromListWith (<>) [(ctx, [e]) | (ctx, e) <- es]
 
-  addPath = \case
-    Nothing -> id
-    Just fp -> let msg = "Failed to decode " <> Text.pack fp <> ":" in (msg :)
+  addPath =
+    case decodeError.filepath of
+      Nothing -> id
+      Just fp -> let msg = "Failed to decode " <> Text.pack fp <> ":" in (msg :)
 
   renderCtxErrors = \case
     -- Special case parse errors, which shouldn't have a context
-    (_, [DecodeError_ParseError msg]) -> msg
-    (ctx, errs) -> Text.intercalate "\n" $ ("At: " <> renderCtxItems ctx) : renderErrors errs
+    (_, [DecodeError_ParseError msg]) -> [msg]
+    (ctx, errs) -> addPath $ ("At: " <> renderCtxItems ctx) : renderErrors errs
 
   renderCtxItems items
     | null items = "<root>"

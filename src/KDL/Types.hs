@@ -99,9 +99,9 @@ data NodeList = NodeList
 
 data NodeListFormat = NodeListFormat
   { leading :: Text
-  -- ^ Whitespace and comments preceding the document's first node.
+  -- ^ Whitespace and comments preceding the first node.
   , trailing :: Text
-  -- ^ Whitespace and comments following the document's last node.
+  -- ^ Whitespace and comments following the last node.
   }
   deriving (Show, Eq)
 
@@ -204,9 +204,9 @@ data Ann = Ann
 data AnnFormat = AnnFormat
   { leading :: Text
   -- ^ Whitespace and comments preceding the annotation itself.
-  , before_id :: Text
+  , beforeId :: Text
   -- ^ Whitespace and comments between the opening `(` and the identifier.
-  , after_id :: Text
+  , afterId :: Text
   -- ^ Whitespace and comments between the identifier and the closing `)`.
   , trailing :: Text
   -- ^ Whitespace and comments following the annotation itself.
@@ -233,9 +233,9 @@ data Node = Node
 data NodeFormat = NodeFormat
   { leading :: Text
   -- ^ Whitespace and comments preceding the node itself.
-  , before_children :: Text
+  , beforeChildren :: Text
   -- ^ Whitespace and comments preceding the node's children block.
-  , before_terminator :: Text
+  , beforeTerminator :: Text
   -- ^ Whitespace and comments right before the node's terminator.
   , terminator :: Text
   -- ^ The terminator for the node.
@@ -295,9 +295,9 @@ data Entry = Entry
 data EntryFormat = EntryFormat
   { leading :: Text
   -- ^ Whitespace and comments preceding the entry itself.
-  , after_key :: Text
+  , afterKey :: Text
   -- ^ Whitespace and comments between an entry's key name and its equals sign.
-  , after_eq :: Text
+  , afterEq :: Text
   -- ^ Whitespace and comments between an entry's equals sign and its value.
   , trailing :: Text
   -- ^ Whitespace and comments following the entry itself.
@@ -341,6 +341,9 @@ data ValueData
   = Text Text
   | Number Scientific
   | Bool Bool
+  | Inf
+  | NegInf
+  | NaN
   | Null
   deriving (Show, Eq)
 
