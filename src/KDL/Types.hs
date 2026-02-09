@@ -338,7 +338,7 @@ valueFormat :: Value -> Maybe ValueFormat
 valueFormat = (.format)
 
 data ValueData
-  = Text Text
+  = String Text
   | Number Scientific
   | Bool Bool
   | Inf

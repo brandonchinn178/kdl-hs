@@ -854,7 +854,7 @@ apiSpec = do
                 , entries =
                     [ Entry
                         { name = Nothing
-                        , value = Value{ann = Nothing, data_ = Text "test", format = Nothing}
+                        , value = Value{ann = Nothing, data_ = String "test", format = Nothing}
                         , format = Nothing
                         }
                     ]
@@ -894,7 +894,7 @@ apiSpec = do
                 , format = Nothing
                 }
         KDL.decodeWith decoder config
-          `shouldBe` Right [val $ Number 1, val $ Text "asdf", val $ Bool True]
+          `shouldBe` Right [val $ Number 1, val $ String "asdf", val $ Bool True]
 
     describe "text" $ do
       it "decodes text value" $ do

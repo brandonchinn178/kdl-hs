@@ -101,7 +101,7 @@ renderValue Value{..} =
 
 renderValueData :: ValueData -> Text
 renderValueData = \case
-  Text s -> renderString s
+  String s -> renderString s
   Number x -> (Text.pack . show) x
   Bool b -> if b then "#true" else "#false"
   Inf -> "#inf"
