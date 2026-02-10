@@ -5,6 +5,9 @@
 * Improve rendering parse errors
 * Include filepath in error messages when `decodeFileWith` fails
 
+API changes:
+* Rename `Text` constructor to `String` in `ValueData`
+
 ## v0.2.1
 
 * Add `KDL.Applicative`

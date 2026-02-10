@@ -32,7 +32,7 @@ NodeList
                   , value =
                       Value
                         { ann = Nothing
-                        , data_ = Text "world"
+                        , data_ = String "world"
                         , format = Just ValueFormat { repr = "world" }
                         }
                   , format =

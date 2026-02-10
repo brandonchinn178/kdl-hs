@@ -440,7 +440,7 @@ p_value = label "value" $ do
 
   (data_, repr) <-
     withSource . choice . map try $
-      [ Text <$> p_string
+      [ String <$> p_string
       , p_number
       , p_keyword
       ]
