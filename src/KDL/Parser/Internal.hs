@@ -438,12 +438,13 @@ p_value = label "value" $ do
           Just a -> (Just $ appendTrailing postAnnWS a, "")
           Nothing -> (Nothing, postAnnWS)
 
-  (data_, repr) <-
+  (data_, repr_) <-
     withSource . choice . map try $
       [ String <$> p_string
       , p_number
       , p_keyword
       ]
+  let repr = Just repr_
 
   pure (Value{ann, data_, format = Just ValueFormat{..}}, leading)
 
@@ -473,7 +474,8 @@ p_type = label "type annotation" $ do
 -- | ref: (3.9)
 p_string'Identifier :: Parser Identifier
 p_string'Identifier = do
-  (value, repr) <- withSource p_string
+  (value, repr_) <- withSource p_string
+  let repr = Just repr_
   pure Identifier{value, format = Just IdentifierFormat{repr}}
 
 -- | ref: (3.9)

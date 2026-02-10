@@ -17,6 +17,7 @@ module KDL.Render (
 ) where
 
 import Data.Char (isDigit)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import KDL.Types (
@@ -96,7 +97,7 @@ renderValue :: Value -> Text
 renderValue Value{..} =
   Text.concat
     [ maybe "" renderAnn ann
-    , maybe (renderValueData data_) (.repr) format
+    , fromMaybe (renderValueData data_) (format >>= (.repr))
     ]
 
 renderValueData :: ValueData -> Text
@@ -181,4 +182,4 @@ renderValueData = \case
     c -> Text.singleton c
 
 renderIdentifier :: Identifier -> Text
-renderIdentifier ident = maybe ident.value (.repr) ident.format
+renderIdentifier ident = fromMaybe ident.value (ident.format >>= (.repr))

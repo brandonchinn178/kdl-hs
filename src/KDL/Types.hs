@@ -73,9 +73,13 @@ module KDL.Types (
   fromIdentifier,
   identifierFormat,
   toIdentifier,
+
+  -- * Re-exports
+  def,
 ) where
 
 import Control.Monad ((<=<))
+import Data.Default (Default (..))
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (listToMaybe, mapMaybe)
@@ -104,6 +108,13 @@ data NodeListFormat = NodeListFormat
   -- ^ Whitespace and comments following the last node.
   }
   deriving (Show, Eq)
+
+instance Default NodeListFormat where
+  def =
+    NodeListFormat
+      { leading = ""
+      , trailing = ""
+      }
 
 fromNodeList :: NodeList -> [Node]
 fromNodeList = (.nodes)
@@ -213,6 +224,15 @@ data AnnFormat = AnnFormat
   }
   deriving (Show, Eq)
 
+instance Default AnnFormat where
+  def =
+    AnnFormat
+      { leading = ""
+      , beforeId = ""
+      , afterId = ""
+      , trailing = ""
+      }
+
 annIdentifier :: Ann -> Identifier
 annIdentifier = (.identifier)
 
@@ -243,6 +263,16 @@ data NodeFormat = NodeFormat
   -- ^ Whitespace and comments following the node, after the terminator.
   }
   deriving (Show, Eq)
+
+instance Default NodeFormat where
+  def =
+    NodeFormat
+      { leading = ""
+      , beforeChildren = ""
+      , beforeTerminator = ""
+      , terminator = ""
+      , trailing = ""
+      }
 
 nodeAnn :: Node -> Maybe Ann
 nodeAnn = (.ann)
@@ -304,6 +334,15 @@ data EntryFormat = EntryFormat
   }
   deriving (Show, Eq)
 
+instance Default EntryFormat where
+  def =
+    EntryFormat
+      { leading = ""
+      , afterKey = ""
+      , afterEq = ""
+      , trailing = ""
+      }
+
 entryName :: Entry -> Maybe Identifier
 entryName = (.name)
 
@@ -323,10 +362,16 @@ data Value = Value
   deriving (Show, Eq)
 
 data ValueFormat = ValueFormat
-  { repr :: Text
+  { repr :: Maybe Text
   -- ^ The actual text representation of the value.
   }
   deriving (Show, Eq)
+
+instance Default ValueFormat where
+  def =
+    ValueFormat
+      { repr = Nothing
+      }
 
 valueAnn :: Value -> Maybe Ann
 valueAnn = (.ann)
@@ -356,9 +401,15 @@ data Identifier = Identifier
   deriving (Show, Eq, Ord)
 
 data IdentifierFormat = IdentifierFormat
-  { repr :: Text
+  { repr :: Maybe Text
   }
   deriving (Show, Eq, Ord)
+
+instance Default IdentifierFormat where
+  def =
+    IdentifierFormat
+      { repr = Nothing
+      }
 
 fromIdentifier :: Identifier -> Text
 fromIdentifier = (.value)
