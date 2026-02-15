@@ -7,10 +7,6 @@ module KDL.Render (
   render,
 
   -- * Rendering components
-  renderNodeList,
-  renderNode,
-  renderEntry,
-  renderAnn,
   renderValue,
   renderValueData,
   renderIdentifier,
@@ -38,36 +34,49 @@ import KDL.Types (
  )
 
 render :: Document -> Text
-render = renderNodeList
+render = renderNodeList 0
 
-renderNodeList :: NodeList -> Text
-renderNodeList NodeList{..} =
+type IndentLevel = Int
+
+renderNodeList :: IndentLevel -> NodeList -> Text
+renderNodeList lvl NodeList{..} =
   Text.concat
-    [ maybe "" (.leading) format
-    , foldMap renderNode nodes
-    , maybe "" (.trailing) format
+    [ maybe (if lvl > 0 then "\n" else "") (.leading) format
+    , foldMap (renderNode lvl) nodes
+    , maybe (indent (lvl - 1)) (.trailing) format
     ]
 
-renderNode :: Node -> Text
-renderNode Node{..} =
+renderNode :: IndentLevel -> Node -> Text
+renderNode lvl Node{..} =
   Text.concat
-    [ maybe "" (.leading) format
+    [ maybe (indent lvl) (.leading) format
     , maybe "" renderAnn ann
     , renderIdentifier name
     , foldMap renderEntry entries
-    , maybe "" (.beforeChildren) format
+    , let def_ = if children == Nothing then "" else " "
+       in maybe def_ (.beforeChildren) format
     , case children of
         Nothing -> ""
-        Just nodes -> "{" <> renderNodeList nodes <> "}"
+        Just nodes -> renderChildren lvl nodes
     , maybe "" (.beforeTerminator) format
-    , maybe "" (.terminator) format
+    , maybe "\n" (.terminator) format
     , maybe "" (.trailing) format
     ]
+
+renderChildren :: IndentLevel -> NodeList -> Text
+renderChildren lvl nodeList =
+  case nodeList.format of
+    -- Special case empty node list to render as "{}"
+    Nothing | null nodeList.nodes -> "{}"
+    _ -> "{" <> renderNodeList (lvl + 1) nodeList <> "}"
+
+indent :: IndentLevel -> Text
+indent lvl = Text.replicate lvl "  "
 
 renderEntry :: Entry -> Text
 renderEntry Entry{..} =
   Text.concat
-    [ maybe "" (.leading) format
+    [ maybe " " (.leading) format
     , case name of
         Nothing -> renderValue value
         Just nameId ->
