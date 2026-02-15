@@ -17,6 +17,7 @@ extra-source-files:
   CHANGELOG.md
   test/KDL/__snapshots__/DecoderSpec.snap.md
   test/KDL/__snapshots__/ParserSpec.snap.md
+  test/KDL/__snapshots__/RenderSpec.snap.md
 
 source-repository head
   type: git
@@ -78,6 +79,7 @@ test-suite kdl-tests
     KDL.Decoder.ArrowSpec
     KDL.Decoder.MonadSpec
     KDL.ParserSpec
+    KDL.RenderSpec
     KDL.TestUtils.AST
     KDL.TestUtils.Error
   build-depends:
