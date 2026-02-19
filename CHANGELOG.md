@@ -7,6 +7,7 @@
 
 API changes:
 * Rename `Text` constructor to `String` in `ValueData`
+* Overhauled `*Format` data types
 
 ## v0.2.1
 

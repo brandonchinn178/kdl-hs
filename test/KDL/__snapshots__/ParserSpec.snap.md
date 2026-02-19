@@ -20,20 +20,22 @@ NodeList
           { ann = Nothing
           , name =
               Identifier
-                { value = "foo" , format = Just IdentifierFormat { repr = "foo" } }
+                { value = "foo"
+                , format = Just IdentifierFormat { repr = Just "foo" }
+                }
           , entries =
               [ Entry
                   { name =
                       Just
                         Identifier
                           { value = "hello"
-                          , format = Just IdentifierFormat { repr = "hello" }
+                          , format = Just IdentifierFormat { repr = Just "hello" }
                           }
                   , value =
                       Value
                         { ann = Nothing
                         , data_ = String "world"
-                        , format = Just ValueFormat { repr = "world" }
+                        , format = Just ValueFormat { repr = Just "world" }
                         }
                   , format =
                       Just
@@ -46,7 +48,7 @@ NodeList
                       Value
                         { ann = Nothing
                         , data_ = Number 1.0
-                        , format = Just ValueFormat { repr = "1.0" }
+                        , format = Just ValueFormat { repr = Just "1.0" }
                         }
                   , format =
                       Just
@@ -62,7 +64,9 @@ NodeList
                           { ann = Nothing
                           , name =
                               Identifier
-                                { value = "bar" , format = Just IdentifierFormat { repr = "bar" } }
+                                { value = "bar"
+                                , format = Just IdentifierFormat { repr = Just "bar" }
+                                }
                           , entries = []
                           , children = Nothing
                           , format =
