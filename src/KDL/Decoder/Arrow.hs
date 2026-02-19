@@ -128,6 +128,7 @@ import KDL.Types (
   NodeList (..),
   Value (..),
   ValueData (..),
+  def,
  )
 import Numeric.Natural (Natural)
 import Prelude hiding (any, fail, null)
@@ -627,7 +628,7 @@ instance DecodeNode Node where
         , name = name
         , entries = []
         , children = Nothing
-        , format = Nothing
+        , ext = def
         }
 
 -- | Decode an argument in the node.
@@ -849,7 +850,7 @@ children decoder =
         }
     pure b
  where
-  emptyNodeList = NodeList{nodes = [], format = Nothing}
+  emptyNodeList = NodeList{nodes = [], ext = def}
 
 {----- Decoding ValueData -----}
 

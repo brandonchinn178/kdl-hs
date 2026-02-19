@@ -21,7 +21,9 @@ NodeList
           , name =
               Identifier
                 { value = "foo"
-                , format = Just IdentifierFormat { repr = Just "foo" }
+                , ext =
+                    IdentifierExtension
+                      { format = Just IdentifierFormat { repr = Just "foo" } }
                 }
           , entries =
               [ Entry
@@ -29,18 +31,25 @@ NodeList
                       Just
                         Identifier
                           { value = "hello"
-                          , format = Just IdentifierFormat { repr = Just "hello" }
+                          , ext =
+                              IdentifierExtension
+                                { format = Just IdentifierFormat { repr = Just "hello" } }
                           }
                   , value =
                       Value
                         { ann = Nothing
                         , data_ = String "world"
-                        , format = Just ValueFormat { repr = Just "world" }
+                        , ext =
+                            ValueExtension
+                              { format = Just ValueFormat { repr = Just "world" } }
                         }
-                  , format =
-                      Just
-                        EntryFormat
-                          { leading = " " , afterKey = "" , afterEq = "" , trailing = "" }
+                  , ext =
+                      EntryExtension
+                        { format =
+                            Just
+                              EntryFormat
+                                { leading = " " , afterKey = "" , afterEq = "" , trailing = "" }
+                        }
                   }
               , Entry
                   { name = Nothing
@@ -48,12 +57,16 @@ NodeList
                       Value
                         { ann = Nothing
                         , data_ = Number 1.0
-                        , format = Just ValueFormat { repr = Just "1.0" }
+                        , ext =
+                            ValueExtension { format = Just ValueFormat { repr = Just "1.0" } }
                         }
-                  , format =
-                      Just
-                        EntryFormat
-                          { leading = " " , afterKey = "" , afterEq = "" , trailing = "" }
+                  , ext =
+                      EntryExtension
+                        { format =
+                            Just
+                              EntryFormat
+                                { leading = " " , afterKey = "" , afterEq = "" , trailing = "" }
+                        }
                   }
               ]
           , children =
@@ -65,34 +78,46 @@ NodeList
                           , name =
                               Identifier
                                 { value = "bar"
-                                , format = Just IdentifierFormat { repr = Just "bar" }
+                                , ext =
+                                    IdentifierExtension
+                                      { format = Just IdentifierFormat { repr = Just "bar" } }
                                 }
                           , entries = []
                           , children = Nothing
-                          , format =
-                              Just
-                                NodeFormat
-                                  { leading = " "
-                                  , beforeChildren = ""
-                                  , beforeTerminator = ""
-                                  , terminator = ";"
-                                  , trailing = ""
-                                  }
+                          , ext =
+                              NodeExtension
+                                { format =
+                                    Just
+                                      NodeFormat
+                                        { leading = " "
+                                        , beforeChildren = ""
+                                        , beforeTerminator = ""
+                                        , terminator = ";"
+                                        , trailing = ""
+                                        }
+                                }
                           }
                       ]
-                  , format = Just NodeListFormat { leading = "" , trailing = " " }
+                  , ext =
+                      NodeListExtension
+                        { format = Just NodeListFormat { leading = "" , trailing = " " } }
                   }
-          , format =
-              Just
-                NodeFormat
-                  { leading = ""
-                  , beforeChildren = " "
-                  , beforeTerminator = ""
-                  , terminator = ""
-                  , trailing = ""
-                  }
+          , ext =
+              NodeExtension
+                { format =
+                    Just
+                      NodeFormat
+                        { leading = ""
+                        , beforeChildren = " "
+                        , beforeTerminator = ""
+                        , terminator = ""
+                        , trailing = ""
+                        }
+                }
           }
       ]
-  , format = Just NodeListFormat { leading = "" , trailing = "" }
+  , ext =
+      NodeListExtension
+        { format = Just NodeListFormat { leading = "" , trailing = "" } }
   }
 ```

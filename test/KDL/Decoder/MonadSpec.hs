@@ -37,16 +37,16 @@ apiSpec = do
             expected =
               Node
                 { ann = Nothing
-                , name = Identifier{value = "foo", format = Nothing}
+                , name = Identifier{value = "foo", ext = KDL.def}
                 , entries =
                     [ Entry
                         { name = Nothing
-                        , value = Value{ann = Nothing, data_ = Number 1.0, format = Nothing}
-                        , format = Nothing
+                        , value = Value{ann = Nothing, data_ = Number 1.0, ext = KDL.def}
+                        , ext = KDL.def
                         }
                     ]
                 , children = Nothing
-                , format = Nothing
+                , ext = KDL.def
                 }
         KDL.decodeWith decoder config `shouldBe` Right expected
 
@@ -58,10 +58,10 @@ apiSpec = do
             fooNode =
               Node
                 { ann = Nothing
-                , name = Identifier{value = "foo", format = Nothing}
+                , name = Identifier{value = "foo", ext = KDL.def}
                 , entries = []
                 , children = Nothing
-                , format = Nothing
+                , ext = KDL.def
                 }
         KDL.decodeWith decoder config `shouldBe` Right expected
 
@@ -75,10 +75,10 @@ apiSpec = do
             node name =
               Node
                 { ann = Nothing
-                , name = Identifier{value = name, format = Nothing}
+                , name = Identifier{value = name, ext = KDL.def}
                 , entries = []
                 , children = Nothing
-                , format = Nothing
+                , ext = KDL.def
                 }
         KDL.decodeWith decoder config `shouldBe` Right expected
 
@@ -168,24 +168,24 @@ apiSpec = do
             fooNode2 =
               Node
                 { ann = Nothing
-                , name = Identifier{value = "foo", format = Nothing}
+                , name = Identifier{value = "foo", ext = KDL.def}
                 , entries =
                     [ Entry
                         { name = Nothing
-                        , value = Value{ann = Nothing, data_ = Number 2.0, format = Nothing}
-                        , format = Nothing
+                        , value = Value{ann = Nothing, data_ = Number 2.0, ext = KDL.def}
+                        , ext = KDL.def
                         }
                     ]
                 , children = Nothing
-                , format = Nothing
+                , ext = KDL.def
                 }
             barNode =
               Node
                 { ann = Nothing
-                , name = Identifier{value = "bar", format = Nothing}
+                , name = Identifier{value = "bar", ext = KDL.def}
                 , entries = []
                 , children = Nothing
-                , format = Nothing
+                , ext = KDL.def
                 }
         KDL.decodeWith decoder config `shouldBe` Right expected
 
@@ -513,13 +513,13 @@ apiSpec = do
             node name children =
               Node
                 { ann = Nothing
-                , name = Identifier{value = name, format = Nothing}
+                , name = Identifier{value = name, ext = KDL.def}
                 , entries = []
                 , children =
                     if null children
                       then Nothing
-                      else Just NodeList{nodes = children, format = Nothing}
-                , format = Nothing
+                      else Just NodeList{nodes = children, ext = KDL.def}
+                , ext = KDL.def
                 }
         KDL.decodeWith decoder config `shouldBe` Right expected
 
@@ -844,16 +844,16 @@ apiSpec = do
             expected =
               Node
                 { ann = Nothing
-                , name = Identifier{value = "bar", format = Nothing}
+                , name = Identifier{value = "bar", ext = KDL.def}
                 , entries =
                     [ Entry
                         { name = Nothing
-                        , value = Value{ann = Nothing, data_ = String "test", format = Nothing}
-                        , format = Nothing
+                        , value = Value{ann = Nothing, data_ = String "test", ext = KDL.def}
+                        , ext = KDL.def
                         }
                     ]
                 , children = Nothing
-                , format = Nothing
+                , ext = KDL.def
                 }
         decodeNode "foo" decoder config `shouldBe` Right expected
 
@@ -885,7 +885,7 @@ apiSpec = do
               Value
                 { ann = Nothing
                 , data_ = data_
-                , format = Nothing
+                , ext = KDL.def
                 }
         KDL.decodeWith decoder config
           `shouldBe` Right [val $ Number 1, val $ String "asdf", val $ Bool True]

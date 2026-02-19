@@ -139,23 +139,33 @@ import Data.Text qualified as Text
 import Data.Void (Void)
 import KDL.Types (
   Ann (..),
+  AnnExtension (..),
   AnnFormat (..),
   Document,
   Entry (..),
+  EntryExtension (..),
   EntryFormat (..),
   Identifier (..),
+  IdentifierExtension (..),
   IdentifierFormat (..),
   Node (..),
+  NodeExtension (..),
   NodeFormat (..),
   NodeList (..),
+  NodeListExtension (..),
   NodeListFormat (..),
   Value (..),
   ValueData (..),
+  ValueExtension (..),
   ValueFormat (..),
  )
+import KDL.Types qualified as AnnExtension (AnnExtension (..))
 import KDL.Types qualified as AnnFormat (AnnFormat (..))
+import KDL.Types qualified as EntryExtension (EntryExtension (..))
 import KDL.Types qualified as EntryFormat (EntryFormat (..))
+import KDL.Types qualified as NodeExtension (NodeExtension (..))
 import KDL.Types qualified as NodeFormat (NodeFormat (..))
+import KDL.Types qualified as NodeListExtension (NodeListExtension (..))
 import KDL.Types qualified as NodeListFormat (NodeListFormat (..))
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -224,7 +234,11 @@ p_nodes = label "nodes" $ do
         if null nodes
           then (leftoverWS, "")
           else ("", leftoverWS)
-  pure NodeList{format = Just NodeListFormat{..}, ..}
+      ext =
+        NodeListExtension
+          { format = Just NodeListFormat{..}
+          }
+  pure NodeList{..}
  where
   manyWhile :: Parser (a, Bool) -> Parser [a]
   manyWhile p =
@@ -325,7 +339,12 @@ p_base_node = label "base node" $ do
     let beforeTerminator = ""
         terminator = ""
 
-    pure Node{format = Just NodeFormat{..}, ..}
+    let ext =
+          NodeExtension
+            { format = Just NodeFormat{..}
+            }
+
+    pure Node{..}
  where
   -- (node-space* (node-space | slashdash) node-prop-or-arg)*
   p_entries = fmap concat . many . label "node prop or arg" $ do
@@ -399,7 +418,8 @@ p_prop = label "property" $ do
           , afterEq
           , trailing = ""
           }
-  pure Entry{name = Just name, value, format = Just format}
+      ext = EntryExtension{format = Just format}
+  pure Entry{name = Just name, ..}
 
 {----- (3.5) Argument -----}
 
@@ -414,7 +434,11 @@ p_value'Entry = label "argument" $ do
           , afterEq = ""
           , trailing = ""
           }
-  pure Entry{name = Nothing, value, format = Just format}
+      ext =
+        EntryExtension
+          { format = Just format
+          }
+  pure Entry{name = Nothing, ..}
 
 {----- (3.6) Children Block -----}
 
@@ -446,7 +470,11 @@ p_value = label "value" $ do
       ]
   let repr = Just repr_
 
-  pure (Value{ann, data_, format = Just ValueFormat{..}}, leading)
+  let ext =
+        ValueExtension
+          { format = Just ValueFormat{..}
+          }
+  pure (Value{..}, leading)
 
 -- | ref: (3.7)
 p_keyword :: Parser ValueData
@@ -467,6 +495,7 @@ p_type = label "type annotation" $ do
     identifier <- p_string'Identifier
     afterId <- withSource_ $ many p_node_space
     let format = Just AnnFormat{leading = "", trailing = "", ..}
+        ext = AnnExtension{format}
     pure Ann{..}
 
 {----- (3.9) String -----}
@@ -476,7 +505,8 @@ p_string'Identifier :: Parser Identifier
 p_string'Identifier = do
   (value, repr_) <- withSource p_string
   let repr = Just repr_
-  pure Identifier{value, format = Just IdentifierFormat{repr}}
+  let ext = IdentifierExtension{format = Just IdentifierFormat{..}}
+  pure Identifier{..}
 
 -- | ref: (3.9)
 -- string := identifier-string | quoted-string | raw-string ¶
@@ -1161,16 +1191,16 @@ class HasFormat a where
   mapFormat :: (KdlFormat a -> KdlFormat a) -> a -> a
 instance HasFormat NodeList where
   type KdlFormat NodeList = NodeListFormat
-  mapFormat f NodeList{..} = NodeList{format = f <$> format, ..}
+  mapFormat f NodeList{..} = NodeList{ext = ext{NodeListExtension.format = f <$> ext.format}, ..}
 instance HasFormat Node where
   type KdlFormat Node = NodeFormat
-  mapFormat f Node{..} = Node{format = f <$> format, ..}
+  mapFormat f Node{..} = Node{ext = ext{NodeExtension.format = f <$> ext.format}, ..}
 instance HasFormat Ann where
   type KdlFormat Ann = AnnFormat
-  mapFormat f Ann{..} = Ann{format = f <$> format, ..}
+  mapFormat f Ann{..} = Ann{ext = ext{AnnExtension.format = f <$> ext.format}, ..}
 instance HasFormat Entry where
   type KdlFormat Entry = EntryFormat
-  mapFormat f Entry{..} = Entry{format = f <$> format, ..}
+  mapFormat f Entry{..} = Entry{ext = ext{EntryExtension.format = f <$> ext.format}, ..}
 
 class (HasFormat a) => HasWsFormat a where
   mapLeading :: (Text -> Text) -> a -> a
