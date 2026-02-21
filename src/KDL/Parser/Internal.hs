@@ -11,6 +11,8 @@ Implement the v2 parser specified at: https://kdl.dev/spec/#name-full-grammar
 -}
 module KDL.Parser.Internal (
   Parser,
+  ParseConfig (..),
+  runParser,
 
   -- * (1) Compatibility
   p_bom,
@@ -112,6 +114,7 @@ module KDL.Parser.Internal (
 ) where
 
 import Control.Monad (guard, void, (>=>))
+import Control.Monad.Trans.Reader qualified as Reader
 import Control.Monad.Trans.State.Strict (StateT, evalStateT)
 import Control.Monad.Trans.State.Strict qualified as State
 import Data.Bifunctor (bimap)
@@ -125,6 +128,7 @@ import Data.Char (
   isSpace,
   ord,
  )
+import Data.Default (Default (..))
 import Data.Either (isRight)
 import Data.Foldable (foldlM, traverse_)
 import Data.Foldable qualified as Seq (toList)
@@ -167,14 +171,29 @@ import KDL.Types qualified as NodeExtension (NodeExtension (..))
 import KDL.Types qualified as NodeFormat (NodeFormat (..))
 import KDL.Types qualified as NodeListExtension (NodeListExtension (..))
 import KDL.Types qualified as NodeListFormat (NodeListFormat (..))
-import Text.Megaparsec
+import Text.Megaparsec hiding (runParser)
 import Text.Megaparsec.Char
 
 #if !MIN_VERSION_base(4,20,0)
 import Data.Foldable (foldl')
 #endif
 
-type Parser = Parsec Void Text
+data ParseConfig = ParseConfig
+  { filepath :: FilePath
+  , includeSpans :: Bool
+  }
+
+instance Default ParseConfig where
+  def =
+    ParseConfig
+      { filepath = ""
+      , includeSpans = False
+      }
+
+type Parser = ParsecT Void Text (Reader.Reader ParseConfig)
+
+runParser :: ParseConfig -> Parser a -> Text -> Either (ParseErrorBundle Text Void) a
+runParser config p = (`Reader.runReader` config) . runParserT p config.filepath
 
 {----- (1) Compatibility -----}
 
@@ -531,7 +550,7 @@ p_identifier_string = label "unquoted string" $ do
     ]
 
 isValidUnquotedString :: Text -> Bool
-isValidUnquotedString = isRight . parse (p_identifier_string <* eof) ""
+isValidUnquotedString = isRight . runParser def (p_identifier_string <* eof)
 
 -- | ref: (3.10)
 -- unambiguous-ident :=
