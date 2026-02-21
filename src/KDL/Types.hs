@@ -9,20 +9,17 @@
 Defines the types that make up a KDL document.
 
 This module enables @-XNoFieldSelectors@, so none of the fields create implicit
-selector functions. Instead, use @-XOverloadedRecordDot@, or the functions
-provided by this module.
+selector functions. Instead, use @-XOverloadedRecordDot@,
+@-XNamedFieldPuns@/@-XRecordWildCards@, or explicitly pattern-match.
 -}
 module KDL.Types (
   -- * Document
   Document,
-  docNodes,
 
   -- * NodeList
   NodeList (..),
   NodeListExtension (..),
   NodeListFormat (..),
-  fromNodeList,
-  nodeListFormat,
 
   -- ** Helpers
   filterNodes,
@@ -36,11 +33,6 @@ module KDL.Types (
   Node (..),
   NodeExtension (..),
   NodeFormat (..),
-  nodeAnn,
-  nodeName,
-  nodeEntries,
-  nodeChildren,
-  nodeFormat,
 
   -- ** Helpers
   getArgs,
@@ -52,32 +44,23 @@ module KDL.Types (
   Entry (..),
   EntryExtension (..),
   EntryFormat (..),
-  entryName,
-  entryValue,
-  entryFormat,
 
   -- * Value
   Value (..),
   ValueExtension (..),
   ValueFormat (..),
-  valueAnn,
-  valueData,
-  valueFormat,
   ValueData (..),
 
   -- * Ann
   Ann (..),
   AnnExtension (..),
   AnnFormat (..),
-  annIdentifier,
-  annFormat,
 
   -- * Identifier
   Identifier (..),
   IdentifierExtension (..),
   IdentifierFormat (..),
   fromIdentifier,
-  identifierFormat,
   toIdentifier,
 
   -- * Span
@@ -98,9 +81,6 @@ import Data.Text (Text)
 {----- Document -----}
 
 type Document = NodeList
-
-docNodes :: Document -> [Node]
-docNodes = fromNodeList
 
 {----- NodeList -----}
 
@@ -136,12 +116,6 @@ instance Default NodeListFormat where
       { leading = ""
       , trailing = ""
       }
-
-fromNodeList :: NodeList -> [Node]
-fromNodeList = (.nodes)
-
-nodeListFormat :: NodeList -> Maybe NodeListFormat
-nodeListFormat = (.ext.format)
 
 -- | A helper to get all nodes with the given name
 filterNodes :: Text -> NodeList -> [Node]
@@ -223,7 +197,7 @@ getDashChildrenAt name = mapMaybe getArg . getDashNodesAt name
 -- mapM getArg (getDashNodesAt "foo" doc) == Just [Number 1, Number 2, Text "test"]
 -- @
 getDashNodesAt :: Text -> NodeList -> [Node]
-getDashNodesAt name = maybe [] (filterNodes "-") . (nodeChildren <=< lookupNode name)
+getDashNodesAt name = maybe [] (filterNodes "-") . ((.children) <=< lookupNode name)
 
 {----- Ann -----}
 
@@ -265,12 +239,6 @@ instance Default AnnFormat where
       , afterId = ""
       , trailing = ""
       }
-
-annIdentifier :: Ann -> Identifier
-annIdentifier = (.identifier)
-
-annFormat :: Ann -> Maybe AnnFormat
-annFormat = (.ext.format)
 
 {----- Node -----}
 
@@ -318,21 +286,6 @@ instance Default NodeFormat where
       , terminator = ""
       , trailing = ""
       }
-
-nodeAnn :: Node -> Maybe Ann
-nodeAnn = (.ann)
-
-nodeName :: Node -> Identifier
-nodeName = (.name)
-
-nodeEntries :: Node -> [Entry]
-nodeEntries = (.entries)
-
-nodeChildren :: Node -> Maybe NodeList
-nodeChildren = (.children)
-
-nodeFormat :: Node -> Maybe NodeFormat
-nodeFormat = (.ext.format)
 
 -- | Get all the positional arguments of the node.
 getArgs :: Node -> [Value]
@@ -400,15 +353,6 @@ instance Default EntryFormat where
       , trailing = ""
       }
 
-entryName :: Entry -> Maybe Identifier
-entryName = (.name)
-
-entryValue :: Entry -> Value
-entryValue = (.value)
-
-entryFormat :: Entry -> Maybe EntryFormat
-entryFormat = (.ext.format)
-
 {----- Value -----}
 
 data Value = Value
@@ -441,15 +385,6 @@ instance Default ValueFormat where
     ValueFormat
       { repr = Nothing
       }
-
-valueAnn :: Value -> Maybe Ann
-valueAnn = (.ann)
-
-valueData :: Value -> ValueData
-valueData = (.data_)
-
-valueFormat :: Value -> Maybe ValueFormat
-valueFormat = (.ext.format)
 
 data ValueData
   = String Text
@@ -494,9 +429,6 @@ instance Default IdentifierFormat where
 
 fromIdentifier :: Identifier -> Text
 fromIdentifier = (.value)
-
-identifierFormat :: Identifier -> Maybe IdentifierFormat
-identifierFormat = (.ext.format)
 
 toIdentifier :: Text -> Identifier
 toIdentifier value = Identifier{value = value, ext = def}
