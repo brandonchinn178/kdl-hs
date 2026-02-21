@@ -1,13 +1,17 @@
 ## Unreleased
 
+## v1.0.0
+
 * Implement KDL v2 parser
 * Implement `KDL.render`, which is format-preserving
 * Improve rendering parse errors
 * Include filepath in error messages when `decodeFileWith` fails
+* Support adding span information
 
 API changes:
 * Rename `Text` constructor to `String` in `ValueData`
 * Overhauled `*Format` data types
+* Removed selector functions (e.g. `nodeName` => `(.name)` or `Node{name}`)
 
 ## v0.2.1
 

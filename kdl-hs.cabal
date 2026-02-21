@@ -1,7 +1,7 @@
 cabal-version: 3.0
 
 name: kdl-hs
-version: 0.2.1
+version: 1.0.0
 synopsis: KDL language parser and API
 description: KDL language parser and API.
 homepage: https://github.com/brandonchinn178/kdl-hs#readme
