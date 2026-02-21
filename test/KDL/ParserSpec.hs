@@ -28,6 +28,11 @@ spec = do
       -- TODO: add more
       test "Unquoted numeric prop name" "foo 123=123"
 
+  describe "parseWith" $ do
+    it "parses a KDL document with spans" $ do
+      KDL.parseWith KDL.def{KDL.includeSpans = True} "foo 1 2 {\n  bar 3\n}"
+        `shouldSatisfy` P.right P.matchesSnapshot
+
   -- Most behavior tested in `parse` tests
   describe "parseFile" $ do
     it "parses a KDL document from a filepath" $ do

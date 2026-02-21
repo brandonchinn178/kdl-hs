@@ -80,6 +80,9 @@ module KDL.Types (
   identifierFormat,
   toIdentifier,
 
+  -- * Span
+  Span (..),
+
   -- * Re-exports
   def,
 ) where
@@ -109,6 +112,7 @@ data NodeList = NodeList
 
 data NodeListExtension = NodeListExtension
   { format :: Maybe NodeListFormat
+  , span :: Span
   }
   deriving (Show, Eq)
 
@@ -124,6 +128,7 @@ instance Default NodeListExtension where
   def =
     NodeListExtension
       { format = def
+      , span = def
       }
 instance Default NodeListFormat where
   def =
@@ -230,6 +235,7 @@ data Ann = Ann
 
 data AnnExtension = AnnExtension
   { format :: Maybe AnnFormat
+  , span :: Span
   }
   deriving (Show, Eq)
 
@@ -249,6 +255,7 @@ instance Default AnnExtension where
   def =
     AnnExtension
       { format = def
+      , span = def
       }
 instance Default AnnFormat where
   def =
@@ -278,6 +285,7 @@ data Node = Node
 
 data NodeExtension = NodeExtension
   { format :: Maybe NodeFormat
+  , span :: Span
   }
   deriving (Show, Eq)
 
@@ -299,6 +307,7 @@ instance Default NodeExtension where
   def =
     NodeExtension
       { format = def
+      , span = def
       }
 instance Default NodeFormat where
   def =
@@ -360,6 +369,7 @@ data Entry = Entry
 
 data EntryExtension = EntryExtension
   { format :: Maybe EntryFormat
+  , span :: Span
   }
   deriving (Show, Eq)
 
@@ -379,6 +389,7 @@ instance Default EntryExtension where
   def =
     EntryExtension
       { format = def
+      , span = def
       }
 instance Default EntryFormat where
   def =
@@ -409,6 +420,7 @@ data Value = Value
 
 data ValueExtension = ValueExtension
   { format :: Maybe ValueFormat
+  , span :: Span
   }
   deriving (Show, Eq)
 
@@ -422,6 +434,7 @@ instance Default ValueExtension where
   def =
     ValueExtension
       { format = def
+      , span = def
       }
 instance Default ValueFormat where
   def =
@@ -458,6 +471,7 @@ data Identifier = Identifier
 
 data IdentifierExtension = IdentifierExtension
   { format :: Maybe IdentifierFormat
+  , span :: Span
   }
   deriving (Show, Eq, Ord)
 
@@ -470,6 +484,7 @@ instance Default IdentifierExtension where
   def =
     IdentifierExtension
       { format = def
+      , span = def
       }
 instance Default IdentifierFormat where
   def =
@@ -485,3 +500,24 @@ identifierFormat = (.ext.format)
 
 toIdentifier :: Text -> Identifier
 toIdentifier value = Identifier{value = value, ext = def}
+
+{----- Span -----}
+
+-- | The span of a KDL element, if parsed with 'includeSpans'. If 'includeSpans'
+-- was not enabled, all fields are set to 0.
+data Span = Span
+  { startLine :: Int
+  , startCol :: Int
+  , endLine :: Int
+  , endCol :: Int
+  }
+  deriving (Show, Eq, Ord)
+
+instance Default Span where
+  def =
+    Span
+      { startLine = 0
+      , startCol = 0
+      , endLine = 0
+      , endCol = 0
+      }
