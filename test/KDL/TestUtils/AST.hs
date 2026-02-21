@@ -12,7 +12,7 @@ instance ScrubFormat NodeList where
   scrubFormat NodeList{..} =
     NodeList
       { nodes = map scrubFormat nodes
-      , format = Nothing
+      , ext = def
       }
 instance ScrubFormat Node where
   scrubFormat Node{..} =
@@ -21,31 +21,31 @@ instance ScrubFormat Node where
       , name = scrubFormat name
       , entries = map scrubFormat entries
       , children = scrubFormat <$> children
-      , format = Nothing
+      , ext = def
       }
 instance ScrubFormat Entry where
   scrubFormat Entry{..} =
     Entry
       { name = scrubFormat <$> name
       , value = scrubFormat value
-      , format = Nothing
+      , ext = def
       }
 instance ScrubFormat Value where
   scrubFormat Value{..} =
     Value
       { ann = scrubFormat <$> ann
       , data_ = data_
-      , format = Nothing
+      , ext = def
       }
 instance ScrubFormat Ann where
   scrubFormat Ann{..} =
     Ann
       { identifier = scrubFormat identifier
-      , format = Nothing
+      , ext = def
       }
 instance ScrubFormat Identifier where
   scrubFormat Identifier{..} =
     Identifier
       { value = value
-      , format = Nothing
+      , ext = def
       }

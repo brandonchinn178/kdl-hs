@@ -11,6 +11,8 @@ Implement the v2 parser specified at: https://kdl.dev/spec/#name-full-grammar
 -}
 module KDL.Parser.Internal (
   Parser,
+  ParseConfig (..),
+  runParser,
 
   -- * (1) Compatibility
   p_bom,
@@ -112,6 +114,8 @@ module KDL.Parser.Internal (
 ) where
 
 import Control.Monad (guard, void, (>=>))
+import Control.Monad.Trans.Class qualified as Trans
+import Control.Monad.Trans.Reader qualified as Reader
 import Control.Monad.Trans.State.Strict (StateT, evalStateT)
 import Control.Monad.Trans.State.Strict qualified as State
 import Data.Bifunctor (bimap)
@@ -125,9 +129,11 @@ import Data.Char (
   isSpace,
   ord,
  )
+import Data.Default (Default (..))
 import Data.Either (isRight)
 import Data.Foldable (foldlM, traverse_)
 import Data.Foldable qualified as Seq (toList)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Maybe (catMaybes, fromMaybe, isJust)
 import Data.Scientific (Scientific)
 import Data.Scientific qualified as Scientific
@@ -139,32 +145,60 @@ import Data.Text qualified as Text
 import Data.Void (Void)
 import KDL.Types (
   Ann (..),
+  AnnExtension (..),
   AnnFormat (..),
   Document,
   Entry (..),
+  EntryExtension (..),
   EntryFormat (..),
   Identifier (..),
+  IdentifierExtension (..),
   IdentifierFormat (..),
   Node (..),
+  NodeExtension (..),
   NodeFormat (..),
   NodeList (..),
+  NodeListExtension (..),
   NodeListFormat (..),
+  Span (..),
   Value (..),
   ValueData (..),
+  ValueExtension (..),
   ValueFormat (..),
  )
+import KDL.Types qualified as AnnExtension (AnnExtension (..))
 import KDL.Types qualified as AnnFormat (AnnFormat (..))
+import KDL.Types qualified as EntryExtension (EntryExtension (..))
 import KDL.Types qualified as EntryFormat (EntryFormat (..))
+import KDL.Types qualified as Node (Node (..))
+import KDL.Types qualified as NodeExtension (NodeExtension (..))
 import KDL.Types qualified as NodeFormat (NodeFormat (..))
+import KDL.Types qualified as NodeListExtension (NodeListExtension (..))
 import KDL.Types qualified as NodeListFormat (NodeListFormat (..))
-import Text.Megaparsec
+import Text.Megaparsec hiding (runParser)
 import Text.Megaparsec.Char
+import Prelude hiding (span)
 
 #if !MIN_VERSION_base(4,20,0)
 import Data.Foldable (foldl')
 #endif
 
-type Parser = Parsec Void Text
+data ParseConfig = ParseConfig
+  { filepath :: FilePath
+  , includeSpans :: Bool
+  }
+
+instance Default ParseConfig where
+  def =
+    ParseConfig
+      { filepath = ""
+      , includeSpans = False
+      }
+
+type Parser = ParsecT Void Text (Reader.Reader ParseConfig)
+
+runParser :: ParseConfig -> Parser a -> Text -> Either (ParseErrorBundle Text Void) a
+runParser config p = (`Reader.runReader` config) . runParserT p config.filepath
 
 {----- (1) Compatibility -----}
 
@@ -208,7 +242,7 @@ p_nodes = label "nodes" $ do
   -- The grammar is left-associative, but we do right-associative to get
   -- correct backtracking semantics + good parse errors
   initialWS <- withSource_ $ many p_line_space
-  results <- fmap concat . manyWhile $ do
+  (results, span) <- withSpan . fmap concat . manyWhile $ do
     (sdash, parseNode) <- p_node
     (result, continue) <-
       resolveSlashdash sdash parseNode >>= \case
@@ -224,7 +258,12 @@ p_nodes = label "nodes" $ do
         if null nodes
           then (leftoverWS, "")
           else ("", leftoverWS)
-  pure NodeList{format = Just NodeListFormat{..}, ..}
+      ext =
+        NodeListExtension
+          { format = Just NodeListFormat{..}
+          , span
+          }
+  pure NodeList{..}
  where
   manyWhile :: Parser (a, Bool) -> Parser [a]
   manyWhile p =
@@ -263,9 +302,22 @@ p_node :: Parser (SlashdashResult, Parser (Node, Bool))
 p_node = label "node" $ do
   (sdash, parseNode) <- p_base_node
   pure . (sdash,) $ do
+    spanStart <- startSpan
     node <- parseNode
     mTerminator <- optional p_node_terminator
-    pure (mapFormat (maybe id setTerminator mTerminator) node, isJust mTerminator)
+    span <- finishSpan spanStart
+    let node' =
+          case mTerminator of
+            Just terminator ->
+              node
+                { Node.ext =
+                    node.ext
+                      { NodeExtension.format = setTerminator terminator <$> node.ext.format
+                      , NodeExtension.span = span
+                      }
+                }
+            Nothing -> node
+    pure (node', isJust mTerminator)
  where
   setTerminator terminator format =
     format
@@ -286,6 +338,8 @@ p_base_node :: Parser (SlashdashResult, Parser Node)
 p_base_node = label "base node" $ do
   sdash <- option NoSlashdash p_slashdash
   pure . (sdash,) $ do
+    spanStart <- startSpan
+
     -- node ann
     initialAnn <- optional p_type
     postAnnWS <- withSource_ $ many p_node_space
@@ -314,6 +368,8 @@ p_base_node = label "base node" $ do
         <*> p_node_children
     let beforeChildren = postEntriesWS <> slashdashedChildren1 <> fromMaybe "" preChildrenWS
 
+    span <- finishSpan spanStart
+
     -- slashdashed node-children #2
     slashdashedChildren2 <- p_slashdashed_children
 
@@ -325,7 +381,13 @@ p_base_node = label "base node" $ do
     let beforeTerminator = ""
         terminator = ""
 
-    pure Node{format = Just NodeFormat{..}, ..}
+    let ext =
+          NodeExtension
+            { format = Just NodeFormat{..}
+            , span
+            }
+
+    pure Node{..}
  where
   -- (node-space* (node-space | slashdash) node-prop-or-arg)*
   p_entries = fmap concat . many . label "node prop or arg" $ do
@@ -387,11 +449,13 @@ p_escline = label "escline" $ do
 -- prop := string node-space* '=' node-space* value
 p_prop :: Parser Entry
 p_prop = label "property" $ do
+  spanStart <- startSpan
   name <- p_string'Identifier
   afterKey <- withSource_ $ many p_node_space
   _ <- char '='
   afterEq <- withSource_ $ many p_node_space
   (value, leading) <- p_value
+  span <- finishSpan spanStart
   let format =
         EntryFormat
           { leading
@@ -399,14 +463,15 @@ p_prop = label "property" $ do
           , afterEq
           , trailing = ""
           }
-  pure Entry{name = Just name, value, format = Just format}
+      ext = EntryExtension{format = Just format, span}
+  pure Entry{name = Just name, ..}
 
 {----- (3.5) Argument -----}
 
 -- | ref: (3.5)
 p_value'Entry :: Parser Entry
 p_value'Entry = label "argument" $ do
-  (value, leading) <- p_value
+  ((value, leading), span) <- withSpan p_value
   let format =
         EntryFormat
           { leading
@@ -414,7 +479,12 @@ p_value'Entry = label "argument" $ do
           , afterEq = ""
           , trailing = ""
           }
-  pure Entry{name = Nothing, value, format = Just format}
+      ext =
+        EntryExtension
+          { format = Just format
+          , span
+          }
+  pure Entry{name = Nothing, ..}
 
 {----- (3.6) Children Block -----}
 
@@ -431,6 +501,7 @@ p_node_children = label "children block" $ do
 -- value := type? node-space* (string | number | keyword)
 p_value :: Parser (Value, Text)
 p_value = label "value" $ do
+  spanStart <- startSpan
   initialAnn <- optional p_type
   postAnnWS <- withSource_ $ many p_node_space
   let (ann, leading) =
@@ -445,8 +516,14 @@ p_value = label "value" $ do
       , p_keyword
       ]
   let repr = Just repr_
+  span <- finishSpan spanStart
 
-  pure (Value{ann, data_, format = Just ValueFormat{..}}, leading)
+  let ext =
+        ValueExtension
+          { format = Just ValueFormat{..}
+          , span
+          }
+  pure (Value{..}, leading)
 
 -- | ref: (3.7)
 p_keyword :: Parser ValueData
@@ -462,21 +539,26 @@ p_keyword = label "value keyword" $ do
 -- type := '(' node-space* string node-space* ')'
 p_type :: Parser Ann
 p_type = label "type annotation" $ do
-  between (char '(') (char ')') $ do
-    beforeId <- withSource_ $ many p_node_space
-    identifier <- p_string'Identifier
-    afterId <- withSource_ $ many p_node_space
-    let format = Just AnnFormat{leading = "", trailing = "", ..}
-    pure Ann{..}
+  ((identifier, format), span) <-
+    withSpan . between (char '(') (char ')') $ do
+      beforeId <- withSource_ $ many p_node_space
+      identifier <- p_string'Identifier
+      afterId <- withSource_ $ many p_node_space
+      let format = Just AnnFormat{leading = "", trailing = "", ..}
+      pure (identifier, format)
+
+  let ext = AnnExtension{format, span}
+  pure Ann{identifier, ext}
 
 {----- (3.9) String -----}
 
 -- | ref: (3.9)
 p_string'Identifier :: Parser Identifier
 p_string'Identifier = do
-  (value, repr_) <- withSource p_string
+  ((value, repr_), span) <- withSpan . withSource $ p_string
   let repr = Just repr_
-  pure Identifier{value, format = Just IdentifierFormat{repr}}
+  let ext = IdentifierExtension{format = Just IdentifierFormat{..}, span}
+  pure Identifier{..}
 
 -- | ref: (3.9)
 -- string := identifier-string | quoted-string | raw-string ¶
@@ -501,7 +583,7 @@ p_identifier_string = label "unquoted string" $ do
     ]
 
 isValidUnquotedString :: Text -> Bool
-isValidUnquotedString = isRight . parse (p_identifier_string <* eof) ""
+isValidUnquotedString = isRight . runParser def (p_identifier_string <* eof)
 
 -- | ref: (3.10)
 -- unambiguous-ident :=
@@ -1120,6 +1202,62 @@ withSource p = do
 withSource_ :: Parser a -> Parser Text
 withSource_ = fmap snd . withSource
 
+newtype SpanStart = SpanStart (Maybe (State Text Void, SourcePos))
+
+withSpan :: Parser a -> Parser (a, Span)
+withSpan p = do
+  spanStart <- startSpan
+  a <- p
+  span <- finishSpan spanStart
+  pure (a, span)
+
+startSpan :: Parser SpanStart
+startSpan = do
+  config <- Trans.lift Reader.ask
+  if not config.includeSpans
+    then pure . SpanStart $ Nothing
+    else do
+      start <- getSourcePos
+      startState <- getParserState
+      pure . SpanStart . Just $ (startState, start)
+
+finishSpan :: SpanStart -> Parser Span
+finishSpan (SpanStart mStart) =
+  case mStart of
+    Nothing -> pure def
+    Just (startState, start) -> do
+      end <- getSourcePos
+      endState <- getParserState
+      let startLine = unPos start.sourceLine
+          startCol = unPos start.sourceColumn
+          (endLine, endCol) =
+            getEnd
+              startState
+              endState
+              startCol
+              (unPos end.sourceLine, unPos end.sourceColumn)
+      pure Span{..}
+ where
+  -- end.sourceColumn is off by 1, since the parser has already incremented
+  -- past the parsed element. So we need to simply subtract 1. However, if
+  -- end.sourceColumn == 1, it's at the start of a new line, and we need to
+  -- calculate the last column of the previous line.
+  getEnd startState endState startCol (endLine, endCol) =
+    if endCol > 1
+      then (endLine, endCol - 1)
+      else
+        let len = endState.stateOffset - startState.stateOffset
+            source = Text.take len startState.stateInput
+            endCol' = case NonEmpty.nonEmpty $ Text.lines source of
+              -- source was empty, i.e. len == 0, so endCol := startCol
+              Nothing -> startCol
+              -- there were no newlines other than the last newline, so we're
+              -- offset from startCol
+              Just (line NonEmpty.:| []) -> startCol + Text.length line - 1
+              -- source had multiple newlines, endCol is simply the length of the last line
+              Just sourceLines -> Text.length $ NonEmpty.last sourceLines
+         in (endLine - 1, endCol')
+
 repeat0 :: (Monoid a) => Parser a -> Parser a
 repeat0 = fmap mconcat . many
 
@@ -1161,16 +1299,16 @@ class HasFormat a where
   mapFormat :: (KdlFormat a -> KdlFormat a) -> a -> a
 instance HasFormat NodeList where
   type KdlFormat NodeList = NodeListFormat
-  mapFormat f NodeList{..} = NodeList{format = f <$> format, ..}
+  mapFormat f NodeList{..} = NodeList{ext = ext{NodeListExtension.format = f <$> ext.format}, ..}
 instance HasFormat Node where
   type KdlFormat Node = NodeFormat
-  mapFormat f Node{..} = Node{format = f <$> format, ..}
+  mapFormat f Node{..} = Node{ext = ext{NodeExtension.format = f <$> ext.format}, ..}
 instance HasFormat Ann where
   type KdlFormat Ann = AnnFormat
-  mapFormat f Ann{..} = Ann{format = f <$> format, ..}
+  mapFormat f Ann{..} = Ann{ext = ext{AnnExtension.format = f <$> ext.format}, ..}
 instance HasFormat Entry where
   type KdlFormat Entry = EntryFormat
-  mapFormat f Entry{..} = Entry{format = f <$> format, ..}
+  mapFormat f Entry{..} = Entry{ext = ext{EntryExtension.format = f <$> ext.format}, ..}
 
 class (HasFormat a) => HasWsFormat a where
   mapLeading :: (Text -> Text) -> a -> a

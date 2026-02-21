@@ -19,6 +19,7 @@ module KDL.Types (
 
   -- * NodeList
   NodeList (..),
+  NodeListExtension (..),
   NodeListFormat (..),
   fromNodeList,
   nodeListFormat,
@@ -33,6 +34,7 @@ module KDL.Types (
 
   -- * Node
   Node (..),
+  NodeExtension (..),
   NodeFormat (..),
   nodeAnn,
   nodeName,
@@ -48,6 +50,7 @@ module KDL.Types (
 
   -- * Entry
   Entry (..),
+  EntryExtension (..),
   EntryFormat (..),
   entryName,
   entryValue,
@@ -55,6 +58,7 @@ module KDL.Types (
 
   -- * Value
   Value (..),
+  ValueExtension (..),
   ValueFormat (..),
   valueAnn,
   valueData,
@@ -63,16 +67,21 @@ module KDL.Types (
 
   -- * Ann
   Ann (..),
+  AnnExtension (..),
   AnnFormat (..),
   annIdentifier,
   annFormat,
 
   -- * Identifier
   Identifier (..),
+  IdentifierExtension (..),
   IdentifierFormat (..),
   fromIdentifier,
   identifierFormat,
   toIdentifier,
+
+  -- * Span
+  Span (..),
 
   -- * Re-exports
   def,
@@ -97,7 +106,13 @@ docNodes = fromNodeList
 
 data NodeList = NodeList
   { nodes :: [Node]
-  , format :: Maybe NodeListFormat
+  , ext :: NodeListExtension
+  }
+  deriving (Show, Eq)
+
+data NodeListExtension = NodeListExtension
+  { format :: Maybe NodeListFormat
+  , span :: Span
   }
   deriving (Show, Eq)
 
@@ -109,6 +124,12 @@ data NodeListFormat = NodeListFormat
   }
   deriving (Show, Eq)
 
+instance Default NodeListExtension where
+  def =
+    NodeListExtension
+      { format = def
+      , span = def
+      }
 instance Default NodeListFormat where
   def =
     NodeListFormat
@@ -120,7 +141,7 @@ fromNodeList :: NodeList -> [Node]
 fromNodeList = (.nodes)
 
 nodeListFormat :: NodeList -> Maybe NodeListFormat
-nodeListFormat = (.format)
+nodeListFormat = (.ext.format)
 
 -- | A helper to get all nodes with the given name
 filterNodes :: Text -> NodeList -> [Node]
@@ -208,7 +229,13 @@ getDashNodesAt name = maybe [] (filterNodes "-") . (nodeChildren <=< lookupNode 
 
 data Ann = Ann
   { identifier :: Identifier
-  , format :: Maybe AnnFormat
+  , ext :: AnnExtension
+  }
+  deriving (Show, Eq)
+
+data AnnExtension = AnnExtension
+  { format :: Maybe AnnFormat
+  , span :: Span
   }
   deriving (Show, Eq)
 
@@ -224,6 +251,12 @@ data AnnFormat = AnnFormat
   }
   deriving (Show, Eq)
 
+instance Default AnnExtension where
+  def =
+    AnnExtension
+      { format = def
+      , span = def
+      }
 instance Default AnnFormat where
   def =
     AnnFormat
@@ -237,7 +270,7 @@ annIdentifier :: Ann -> Identifier
 annIdentifier = (.identifier)
 
 annFormat :: Ann -> Maybe AnnFormat
-annFormat = (.format)
+annFormat = (.ext.format)
 
 {----- Node -----}
 
@@ -246,7 +279,13 @@ data Node = Node
   , name :: Identifier
   , entries :: [Entry]
   , children :: Maybe NodeList
-  , format :: Maybe NodeFormat
+  , ext :: NodeExtension
+  }
+  deriving (Show, Eq)
+
+data NodeExtension = NodeExtension
+  { format :: Maybe NodeFormat
+  , span :: Span
   }
   deriving (Show, Eq)
 
@@ -264,6 +303,12 @@ data NodeFormat = NodeFormat
   }
   deriving (Show, Eq)
 
+instance Default NodeExtension where
+  def =
+    NodeExtension
+      { format = def
+      , span = def
+      }
 instance Default NodeFormat where
   def =
     NodeFormat
@@ -287,7 +332,7 @@ nodeChildren :: Node -> Maybe NodeList
 nodeChildren = (.children)
 
 nodeFormat :: Node -> Maybe NodeFormat
-nodeFormat = (.format)
+nodeFormat = (.ext.format)
 
 -- | Get all the positional arguments of the node.
 getArgs :: Node -> [Value]
@@ -318,7 +363,13 @@ data Entry = Entry
   { name :: Maybe Identifier
   -- ^ The name of the entry, if it's a property, Nothing if it's a positional arg
   , value :: Value
-  , format :: Maybe EntryFormat
+  , ext :: EntryExtension
+  }
+  deriving (Show, Eq)
+
+data EntryExtension = EntryExtension
+  { format :: Maybe EntryFormat
+  , span :: Span
   }
   deriving (Show, Eq)
 
@@ -334,6 +385,12 @@ data EntryFormat = EntryFormat
   }
   deriving (Show, Eq)
 
+instance Default EntryExtension where
+  def =
+    EntryExtension
+      { format = def
+      , span = def
+      }
 instance Default EntryFormat where
   def =
     EntryFormat
@@ -350,14 +407,20 @@ entryValue :: Entry -> Value
 entryValue = (.value)
 
 entryFormat :: Entry -> Maybe EntryFormat
-entryFormat = (.format)
+entryFormat = (.ext.format)
 
 {----- Value -----}
 
 data Value = Value
   { ann :: Maybe Ann
   , data_ :: ValueData
-  , format :: Maybe ValueFormat
+  , ext :: ValueExtension
+  }
+  deriving (Show, Eq)
+
+data ValueExtension = ValueExtension
+  { format :: Maybe ValueFormat
+  , span :: Span
   }
   deriving (Show, Eq)
 
@@ -367,6 +430,12 @@ data ValueFormat = ValueFormat
   }
   deriving (Show, Eq)
 
+instance Default ValueExtension where
+  def =
+    ValueExtension
+      { format = def
+      , span = def
+      }
 instance Default ValueFormat where
   def =
     ValueFormat
@@ -380,7 +449,7 @@ valueData :: Value -> ValueData
 valueData = (.data_)
 
 valueFormat :: Value -> Maybe ValueFormat
-valueFormat = (.format)
+valueFormat = (.ext.format)
 
 data ValueData
   = String Text
@@ -396,7 +465,13 @@ data ValueData
 
 data Identifier = Identifier
   { value :: Text
-  , format :: Maybe IdentifierFormat
+  , ext :: IdentifierExtension
+  }
+  deriving (Show, Eq, Ord)
+
+data IdentifierExtension = IdentifierExtension
+  { format :: Maybe IdentifierFormat
+  , span :: Span
   }
   deriving (Show, Eq, Ord)
 
@@ -405,6 +480,12 @@ data IdentifierFormat = IdentifierFormat
   }
   deriving (Show, Eq, Ord)
 
+instance Default IdentifierExtension where
+  def =
+    IdentifierExtension
+      { format = def
+      , span = def
+      }
 instance Default IdentifierFormat where
   def =
     IdentifierFormat
@@ -415,7 +496,28 @@ fromIdentifier :: Identifier -> Text
 fromIdentifier = (.value)
 
 identifierFormat :: Identifier -> Maybe IdentifierFormat
-identifierFormat = (.format)
+identifierFormat = (.ext.format)
 
 toIdentifier :: Text -> Identifier
-toIdentifier value = Identifier{value = value, format = Nothing}
+toIdentifier value = Identifier{value = value, ext = def}
+
+{----- Span -----}
+
+-- | The span of a KDL element, if parsed with 'includeSpans'. If 'includeSpans'
+-- was not enabled, all fields are set to 0.
+data Span = Span
+  { startLine :: Int
+  , startCol :: Int
+  , endLine :: Int
+  , endCol :: Int
+  }
+  deriving (Show, Eq, Ord)
+
+instance Default Span where
+  def =
+    Span
+      { startLine = 0
+      , startCol = 0
+      , endLine = 0
+      , endCol = 0
+      }

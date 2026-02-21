@@ -11,11 +11,11 @@ spec :: Spec
 spec = do
   describe "render" $ do
     describe "default formatting" $ do
-      let ident s = KDL.Identifier{value = s, format = KDL.def}
+      let ident s = KDL.Identifier{value = s, ext = KDL.def}
           fooAnn =
             KDL.Ann
               { identifier = ident "Foo"
-              , format = KDL.def
+              , ext = KDL.def
               }
           doc =
             KDL.NodeList
@@ -30,9 +30,9 @@ spec = do
                                   KDL.Value
                                     { ann = Just fooAnn
                                     , data_ = KDL.Number 123
-                                    , format = KDL.def
+                                    , ext = KDL.def
                                     }
-                              , format = KDL.def
+                              , ext = KDL.def
                               }
                           , KDL.Entry
                               { name = Just $ ident "a"
@@ -40,9 +40,9 @@ spec = do
                                   KDL.Value
                                     { ann = Just fooAnn
                                     , data_ = KDL.Number 123
-                                    , format = KDL.def
+                                    , ext = KDL.def
                                     }
-                              , format = KDL.def
+                              , ext = KDL.def
                               }
                           , KDL.Entry
                               { name = Nothing
@@ -50,9 +50,9 @@ spec = do
                                   KDL.Value
                                     { ann = Nothing
                                     , data_ = KDL.String "test"
-                                    , format = KDL.def
+                                    , ext = KDL.def
                                     }
-                              , format = KDL.def
+                              , ext = KDL.def
                               }
                           , KDL.Entry
                               { name = Just $ ident "b"
@@ -60,9 +60,9 @@ spec = do
                                   KDL.Value
                                     { ann = Nothing
                                     , data_ = KDL.String "test"
-                                    , format = KDL.def
+                                    , ext = KDL.def
                                     }
-                              , format = KDL.def
+                              , ext = KDL.def
                               }
                           ]
                       , children =
@@ -82,17 +82,17 @@ spec = do
                                                       , name = ident "baz"
                                                       , entries = []
                                                       , children = Nothing
-                                                      , format = KDL.def
+                                                      , ext = KDL.def
                                                       }
                                                   ]
-                                              , format = KDL.def
+                                              , ext = KDL.def
                                               }
-                                      , format = KDL.def
+                                      , ext = KDL.def
                                       }
                                   ]
-                              , format = KDL.def
+                              , ext = KDL.def
                               }
-                      , format = KDL.def
+                      , ext = KDL.def
                       }
                   , KDL.Node
                       { ann = Just fooAnn
@@ -102,12 +102,12 @@ spec = do
                           Just
                             KDL.NodeList
                               { nodes = []
-                              , format = KDL.def
+                              , ext = KDL.def
                               }
-                      , format = KDL.def
+                      , ext = KDL.def
                       }
                   ]
-              , format = KDL.def
+              , ext = KDL.def
               }
 
       it "renders correctly" $ do
