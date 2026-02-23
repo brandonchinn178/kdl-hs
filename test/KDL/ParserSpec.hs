@@ -4,6 +4,7 @@
 module KDL.ParserSpec (spec) where
 
 import Control.Monad (forM_)
+import Data.Maybe (isJust)
 import Data.Text.IO qualified as Text
 import KDL qualified
 import Skeletest
@@ -11,6 +12,7 @@ import Skeletest.Predicate qualified as P
 import System.Directory (findExecutable, listDirectory)
 import System.FilePath (takeExtension, (</>))
 import System.IO.Temp (withSystemTempDirectory)
+import System.IO.Unsafe (unsafePerformIO)
 import System.Process (callProcess)
 
 spec :: Spec
@@ -44,17 +46,20 @@ spec = do
         -- tested in `parse`
         actual `shouldBe` expected
 
-  describe "kdl-test examples" $ do
+  (if dotSlashInstalled then id else skip "dotslash not installed") . describe "kdl-test examples" $ do
     it "decodes correctly" $ do
       decoder <- findExecutable "kdl-hs-test-decoder" >>= maybe (error "Could not find kdl-hs-test-decoder") pure
-      callProcess "scripts/kdl-test" ["run", "--decoder", decoder]
+      callProcess "tools/kdl-test" ["run", "--decoder", decoder]
 
     it "roundtrips successfully" $ do
       FixtureTmpDir tmpdir <- getFixture
       let dir = tmpdir </> "kdl-examples"
-      callProcess "scripts/kdl-test" ["extract", "--dir", dir]
+      callProcess "tools/kdl-test" ["extract", "--dir", dir]
       files <- filter ((== ".kdl") . takeExtension) <$> listDirectory (dir </> "valid")
       forM_ files $ \file -> do
         context file $ do
           content <- Text.readFile (dir </> "valid" </> file)
           (fmap KDL.render . KDL.parse) content `shouldBe` Right content
+
+dotSlashInstalled :: Bool
+dotSlashInstalled = unsafePerformIO $ isJust <$> findExecutable "dotslash"

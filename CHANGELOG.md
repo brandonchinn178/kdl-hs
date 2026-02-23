@@ -1,5 +1,3 @@
-## Unreleased
-
 ## v1.0.0
 
 * Implement KDL v2 parser
