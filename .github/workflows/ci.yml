@@ -18,7 +18,7 @@ jobs:
           - '9.8'
           - '9.10'
           - '9.12'
-          # - '9.14'
+          - '9.14'
         include:
           - ghc_version: '9.8.1'
             oldest: true
@@ -41,6 +41,23 @@ jobs:
           cabal configure
             --enable-test
             --test-show-details=streaming
+      -
+        # TODO: Remove these exclusions as packages are updated with 9.14
+        if: ${{ matrix.ghc_version == '9.14' }}
+        name: Add 9.14 flags
+        run: >
+          cabal configure
+          --enable-append
+          --allow-newer='aeson:*'
+          --allow-newer='boring:*'
+          --allow-newer='indexed-traversable:*'
+          --allow-newer='indexed-traversable-instances:*'
+          --allow-newer='ordered-containers:*'
+          --allow-newer='semialign:*'
+          --allow-newer='text-iso8601:*'
+          --allow-newer='these:*'
+          --allow-newer='time-compat:*'
+          --allow-newer='uuid-types:*'
       -
         if: ${{ matrix.oldest }}
         name: Use oldest dependencies
