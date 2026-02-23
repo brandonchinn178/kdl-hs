@@ -18,6 +18,7 @@ extra-source-files:
   test/KDL/__snapshots__/DecoderSpec.snap.md
   test/KDL/__snapshots__/ParserSpec.snap.md
   test/KDL/__snapshots__/RenderSpec.snap.md
+  tools/kdl-test
 
 source-repository head
   type: git

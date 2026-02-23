@@ -49,12 +49,12 @@ spec = do
   (if dotSlashInstalled then id else skip "dotslash not installed") . describe "kdl-test examples" $ do
     it "decodes correctly" $ do
       decoder <- findExecutable "kdl-hs-test-decoder" >>= maybe (error "Could not find kdl-hs-test-decoder") pure
-      callProcess "scripts/kdl-test" ["run", "--decoder", decoder]
+      callProcess "tools/kdl-test" ["run", "--decoder", decoder]
 
     it "roundtrips successfully" $ do
       FixtureTmpDir tmpdir <- getFixture
       let dir = tmpdir </> "kdl-examples"
-      callProcess "scripts/kdl-test" ["extract", "--dir", dir]
+      callProcess "tools/kdl-test" ["extract", "--dir", dir]
       files <- filter ((== ".kdl") . takeExtension) <$> listDirectory (dir </> "valid")
       forM_ files $ \file -> do
         context file $ do
