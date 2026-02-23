@@ -24,7 +24,7 @@ At: foo #0 > arg #0
 ```
 Failed to decode test_config.kdl:
 At: foo #1 > bar #0 > baz #3 > prop a
-  Expected text, got: 1
+  Expected string, got: 1
 ```
 
 ## decodeWith / fails with helpful error if parsing fails
@@ -49,5 +49,5 @@ At: foo #0 > arg #0
 
 ```
 At: foo #1 > bar #0 > baz #3 > prop a
-  Expected text, got: 1
+  Expected string, got: 1
 ```
