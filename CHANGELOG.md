@@ -1,3 +1,7 @@
+## v1.0.1
+
+* Skip `kdl-test` tests if `dotslash` isn't installed
+
 ## v1.0.0
 
 * Implement KDL v2 parser
