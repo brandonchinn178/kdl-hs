@@ -85,7 +85,7 @@ spec = do
                         KDL.SchemaOne . KDL.NodeArg $
                           KDL.TypedValueSchema
                             { typeHint = typeRep $ Proxy @Text
-                            , validTypeAnns = ["text"]
+                            , validTypeAnns = ["string"]
                             , dataSchema = KDL.SchemaOne KDL.TextSchema
                             }
                     }

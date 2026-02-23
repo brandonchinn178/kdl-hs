@@ -71,6 +71,7 @@ module KDL.Decoder.Arrow (
   ValueDecodeArrow,
   DecodeValue (..),
   any,
+  string,
   text,
   number,
   bool,
@@ -424,7 +425,7 @@ argsAt name = withDecodeValue $ argsAtWith' name
 --     email "a@example.com" "b@example.com"
 --     """
 --   decoder = KDL.document $ proc () -> do
---     KDL.argsAtWith "email" KDL.text -< ()
+--     KDL.argsAtWith "email" KDL.string -< ()
 -- KDL.decodeWith decoder config == Right ["a@example.com", "b@example.com"]
 -- @
 argsAtWith :: forall a b. (Typeable b) => Text -> ValueDecodeArrow a b -> NodeListDecodeArrow a [b]
@@ -470,7 +471,7 @@ dashChildrenAt name = withDecodeValue $ dashChildrenAtWith' name
 --     }
 --     """
 --   decoder = KDL.document $ proc () -> do
---     KDL.dashChildrenAtWith "attendees" $ KDL.text -< ()
+--     KDL.dashChildrenAtWith "attendees" $ KDL.string -< ()
 -- KDL.decodeWith decoder config == Right [\"Alice", \"Bob"]
 -- @
 dashChildrenAtWith :: forall a b. (Typeable b) => Text -> ValueDecodeArrow a b -> NodeListDecodeArrow a [b]
@@ -665,7 +666,7 @@ arg = withDecodeValue argWith'
 --   decoder = KDL.document $ proc () -> do
 --     KDL.nodeWith "person" $ decodePerson -< ()
 --   decodePerson = proc () -> do
---     name \<- KDL.argWith $ Text.toUpper \<$> KDL.text -< ()
+--     name \<- KDL.argWith $ Text.toUpper \<$> KDL.string -< ()
 --     vals \<- KDL.many $ KDL.argWith $ show \<$> KDL.valueDecoder @Int -< ()
 --     returnA -< (name, vals)
 -- KDL.decodeWith decoder config == Right (\"ALICE", ["1", "2", "3"])
@@ -910,11 +911,11 @@ instance DecodeValue Value where
 instance DecodeValue ValueData where
   valueDecoder = (.data_) <$> any
 instance DecodeValue Text where
-  validValueTypeAnns _ = ["text"]
-  valueDecoder = text
+  validValueTypeAnns _ = ["string"]
+  valueDecoder = string
 instance DecodeValue String where
   validValueTypeAnns _ = ["string"]
-  valueDecoder = Text.unpack <$> text
+  valueDecoder = Text.unpack <$> string
 instance DecodeValue Bool where
   validValueTypeAnns _ = ["bool", "boolean"]
   valueDecoder = bool
@@ -1018,11 +1019,16 @@ valueDataDecoderPrim schema f = DecodeArrow schema $ \_ -> Trans.lift . f =<< St
 any :: DecodeArrow Value a Value
 any = valueDataDecoderPrim (SchemaOr $ map SchemaOne [minBound .. maxBound]) pure
 
--- | Decode a KDL text value.
-text :: DecodeArrow Value a Text
-text = valueDataDecoderPrim (SchemaOne TextSchema) $ \case
+-- | Decode a KDL string value.
+string :: DecodeArrow Value a Text
+string = valueDataDecoderPrim (SchemaOne TextSchema) $ \case
   Value{data_ = String s} -> pure s
-  v -> decodeThrow DecodeError_ValueDecodeFail{expectedType = "text", value = v}
+  v -> decodeThrow DecodeError_ValueDecodeFail{expectedType = "string", value = v}
+
+-- | Deprecated in favor of 'string'.
+text :: DecodeArrow Value a Text
+text = string
+{-# DEPRECATED text "Use KDL.string instead" #-}
 
 -- | Decode a KDL number value.
 number :: DecodeArrow Value a Scientific
