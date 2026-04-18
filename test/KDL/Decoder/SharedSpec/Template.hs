@@ -690,6 +690,17 @@ apiSpec = do
             , "  Expected annotation to be one of [\"VAL\"], got: test"
             ]
 
+      it "supports backtracking annotations" $ do
+        let config = "foo (l)1 (r)2"
+            decodeArg =
+              KDL.oneOf
+                [ Left <$> KDL.argWith' ["l"] KDL.number
+                , Right <$> KDL.argWith' ["r"] KDL.number
+                ]
+            decoder = KDL.document $ _DO_
+              _STMT_(KDL.nodeWith "foo" . KDL.many $ decodeArg)
+        KDL.decodeWith decoder config `shouldBe` Right [Left 1, Right 2]
+
     describe "prop" $ do
       it "decodes a prop" $ do
         let config = "foo test1=1 test2=hello"
