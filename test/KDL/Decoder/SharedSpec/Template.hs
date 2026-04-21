@@ -474,6 +474,7 @@ apiSpec = do
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
             , "  Unexpected node: bar #0"
+            , "  Expected another node: -"
             ]
 
       it "fails if any child fails to parse" $ do
@@ -569,6 +570,7 @@ apiSpec = do
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
             , "  Unexpected node: bar #0"
+            , "  Expected another node: -"
             ]
 
     -- Most behaviors tested with `dashNodesAt`

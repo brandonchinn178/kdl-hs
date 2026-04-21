@@ -1056,9 +1056,13 @@ null = valueDataDecoderPrim (SchemaOne NullSchema) $ \case
 
 -- | Return the first result that succeeds.
 --
--- > oneOf [a, b, c] === a <|> b <|> c <|> empty
+-- > oneOf [a, b, c] === a <|> b <|> c
 oneOf :: (Alternative f) => [f a] -> f a
-oneOf = foldr (<|>) empty
+oneOf ms =
+  -- Avoid 'empty' if possible
+  case NonEmpty.nonEmpty ms of
+    Just ms' -> foldr1 (<|>) ms'
+    Nothing -> empty
 
 -- | Return the given default value if the given action fails.
 --
