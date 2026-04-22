@@ -70,7 +70,7 @@ runDecodeM (DecodeM f) = f Left Left Right
 --
 -- This error is non-fatal and can be handled by '<|>'. See 'makeFatal'
 -- for more information.
-decodeThrow :: BaseDecodeError -> DecodeM a
+decodeThrow :: DecodeErrorKind -> DecodeM a
 decodeThrow e = DecodeM $ \_ onFail _ -> onFail $ DecodeError Nothing [([], e)]
 
 -- | Throw a 'DecodeError_Custom' error.
