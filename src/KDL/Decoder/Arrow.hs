@@ -12,10 +12,19 @@ module KDL.Decoder.Arrow (
 
   -- * Decoder
   Decoder,
-  module KDL.Decoder.Internal.DecodeM,
+  liftDecodeM,
   fail,
   withDecoder,
   debug,
+
+  -- ** DecodeM
+  DecodeM,
+  runDecodeM,
+  decodeThrow,
+  failM,
+
+  -- ** Decode errors
+  module KDL.Decoder.Internal.Error,
 
   -- * Document
   DocumentDecoder (..),
@@ -112,6 +121,7 @@ import Data.Word (Word16, Word32, Word64, Word8)
 import GHC.Int (Int16, Int32, Int8)
 import KDL.Decoder.Internal.DecodeM
 import KDL.Decoder.Internal.Decoder
+import KDL.Decoder.Internal.Error
 import KDL.Decoder.Schema (
   Schema (..),
   SchemaItem (..),

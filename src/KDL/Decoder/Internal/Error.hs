@@ -7,7 +7,8 @@
 
 module KDL.Decoder.Internal.Error (
   DecodeError (..),
-  BaseDecodeError (..),
+  BaseDecodeError,
+  DecodeErrorKind (..),
   Context,
   ContextItem (..),
   renderDecodeError,
@@ -28,7 +29,7 @@ import KDL.Types (
 
 data DecodeError = DecodeError
   { filepath :: Maybe FilePath
-  , errors :: [(Context, BaseDecodeError)]
+  , errors :: [BaseDecodeError]
   }
   deriving (Show, Eq)
 instance Semigroup DecodeError where
@@ -36,6 +37,7 @@ instance Semigroup DecodeError where
 instance Monoid DecodeError where
   mempty = DecodeError Nothing []
 
+type BaseDecodeError = (Context, DecodeErrorKind)
 type Context = [ContextItem]
 
 data ContextItem
@@ -51,7 +53,7 @@ data ContextItem
       }
   deriving (Show, Eq, Ord)
 
-data BaseDecodeError
+data DecodeErrorKind
   = DecodeError_Custom Text
   | DecodeError_ParseError Text
   | DecodeError_ExpectedNode {name :: Text, index :: Int}
