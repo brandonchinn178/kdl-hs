@@ -72,7 +72,6 @@ module KDL.Decoder.Arrow (
   DecodeValue (..),
   any,
   string,
-  text,
   number,
   bool,
   null,
@@ -1024,11 +1023,6 @@ string :: DecodeArrow Value a Text
 string = valueDataDecoderPrim (SchemaOne TextSchema) $ \case
   Value{data_ = String s} -> pure s
   v -> decodeThrow DecodeError_ValueDecodeFail{expectedType = "string", value = v}
-
--- | Deprecated in favor of 'string'.
-text :: DecodeArrow Value a Text
-text = string
-{-# DEPRECATED text "Use KDL.string instead" #-}
 
 -- | Decode a KDL number value.
 number :: DecodeArrow Value a Scientific
