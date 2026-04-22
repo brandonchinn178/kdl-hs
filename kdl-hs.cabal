@@ -79,6 +79,8 @@ test-suite kdl-tests
     KDL.DecoderSpec
     KDL.Decoder.ArrowSpec
     KDL.Decoder.MonadSpec
+    KDL.Decoder.SharedSpec.Arrow
+    KDL.Decoder.SharedSpec.Monad
     KDL.ParserSpec
     KDL.RenderSpec
     KDL.TestUtils.AST

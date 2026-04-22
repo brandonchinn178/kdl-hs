@@ -1,5 +1,7 @@
 defaults {
-    files !*.snap.md
+    files \
+        "!test/KDL/Decoder/SharedSpec/Template.hs" \
+        !*.snap.md
 }
 
 hook hooky {
