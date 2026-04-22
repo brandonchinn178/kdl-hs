@@ -1,3 +1,13 @@
+## v1.1.0
+
+* Rename `KDL.text` to `KDL.string`
+  * Matches the rename of the `Text` constructor to `String`
+* Rename `BaseDecodeError` to `DecodeErrorKind`
+* Create new `BaseDecodeError` alias
+* Prune internal re-exports of `KDL.Decoder.Internal.DecodeM`
+* Improve decoding error reporting ([#28](https://github.com/brandonchinn178/kdl-hs/issues/28))
+  * Might cause slight performance regressions - please create a ticket if you notice any!
+
 ## v1.0.1
 
 * Skip `kdl-test` tests if `dotslash` isn't installed
