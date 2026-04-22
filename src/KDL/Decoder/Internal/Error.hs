@@ -14,7 +14,8 @@ module KDL.Decoder.Internal.Error (
   renderDecodeError,
 ) where
 
-import Control.Applicative ((<|>))
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -29,13 +30,9 @@ import KDL.Types (
 
 data DecodeError = DecodeError
   { filepath :: Maybe FilePath
-  , errors :: [BaseDecodeError]
+  , errors :: NonEmpty BaseDecodeError
   }
   deriving (Show, Eq)
-instance Semigroup DecodeError where
-  DecodeError fp1 e1 <> DecodeError fp2 e2 = DecodeError (fp1 <|> fp2) (e1 <> e2)
-instance Monoid DecodeError where
-  mempty = DecodeError Nothing []
 
 type BaseDecodeError = (Context, DecodeErrorKind)
 type Context = [ContextItem]
@@ -74,7 +71,11 @@ renderDecodeError decodeError =
     $ decodeError.errors
  where
   -- Group errors with the same contexts together
-  groupCtxErrors es = Map.toAscList $ Map.fromListWith (<>) [(ctx, [e]) | (ctx, e) <- es]
+  groupCtxErrors es =
+    Map.toAscList . Map.fromListWith (<>) $
+      [ (ctx, [e])
+      | (ctx, e) <- NonEmpty.toList es
+      ]
 
   addPath =
     case decodeError.filepath of

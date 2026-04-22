@@ -293,7 +293,7 @@ decodeFirstNodeWhere matcher decodeNode = do
       index <- StateT.gets (getNodeIndex name.value)
       StateT.modify $ \s -> s{object = s.object{nodes = nodes'}}
       b <-
-        Trans.lift . makeFatal . addContext ContextNode{name = name, index = index} $
+        Trans.lift . addContext ContextNode{name = name, index = index} $
           decodeNode node_
       StateT.modify $ \s -> s{history = s.history{nodesSeen = inc name.value s.history.nodesSeen}}
       pure $ Just (node_, b)
@@ -697,7 +697,7 @@ argWith' =
       StateT.modify $ \s -> s{object = s.object{entries = entries'}}
 
       b <-
-        Trans.lift . makeFatal . addContext ContextArg{index = index} $
+        Trans.lift . addContext ContextArg{index = index} $
           decodeValue a entry.value
       StateT.modify $ \s -> s{history = s.history{argsSeen = s.history.argsSeen + 1}}
       pure b
@@ -758,7 +758,7 @@ decodeOnePropWhere matcher decodeValue = do
     Just (name, prop_, entries') -> do
       StateT.modify $ \s -> s{object = s.object{entries = entries'}}
       b <-
-        Trans.lift . makeFatal . addContext ContextProp{name = name} $
+        Trans.lift . addContext ContextProp{name = name} $
           decodeValue prop_.value
       StateT.modify $ \s -> s{history = s.history{propsSeen = Set.insert name s.history.propsSeen}}
       pure $ Just (name, b)
@@ -1056,9 +1056,13 @@ null = valueDataDecoderPrim (SchemaOne NullSchema) $ \case
 
 -- | Return the first result that succeeds.
 --
--- > oneOf [a, b, c] === a <|> b <|> c <|> empty
+-- > oneOf [a, b, c] === a <|> b <|> c
 oneOf :: (Alternative f) => [f a] -> f a
-oneOf = foldr (<|>) empty
+oneOf ms =
+  -- Avoid 'empty' if possible
+  case NonEmpty.nonEmpty ms of
+    Just ms' -> foldr1 (<|>) ms'
+    Nothing -> empty
 
 -- | Return the given default value if the given action fails.
 --
