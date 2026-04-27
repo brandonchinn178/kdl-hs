@@ -9,7 +9,7 @@ import Data.Text.IO qualified as Text
 import KDL qualified
 import Skeletest
 import Skeletest.Predicate qualified as P
-import System.Directory (findExecutable, listDirectory)
+import System.Directory (doesFileExist, findExecutable, listDirectory)
 import System.FilePath (takeExtension, (</>))
 import System.IO.Temp (withSystemTempDirectory)
 import System.IO.Unsafe (unsafePerformIO)
@@ -46,7 +46,7 @@ spec = do
         -- tested in `parse`
         actual `shouldBe` expected
 
-  (if dotSlashInstalled then id else skip "dotslash not installed") . describe "kdl-test examples" $ do
+  (if runKdlTest then id else skip "cannot run kdl-test") . describe "kdl-test examples" $ do
     it "decodes correctly" $ do
       decoder <- findExecutable "kdl-hs-test-decoder" >>= maybe (error "Could not find kdl-hs-test-decoder") pure
       callProcess "tools/kdl-test" ["run", "--decoder", decoder]
@@ -61,5 +61,9 @@ spec = do
           content <- Text.readFile (dir </> "valid" </> file)
           (fmap KDL.render . KDL.parse) content `shouldBe` Right content
 
-dotSlashInstalled :: Bool
-dotSlashInstalled = unsafePerformIO $ isJust <$> findExecutable "dotslash"
+runKdlTest :: Bool
+runKdlTest = unsafePerformIO $ do
+  -- Not included in sdist because sdist doesn't preserve executable perms
+  scriptExists <- doesFileExist "tools/kdl-test"
+  dotslashInstalled <- isJust <$> findExecutable "dotslash"
+  pure $ scriptExists && dotslashInstalled
