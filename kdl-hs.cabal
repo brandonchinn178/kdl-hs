@@ -15,6 +15,7 @@ build-type: Simple
 extra-source-files:
   README.md
   CHANGELOG.md
+  test/KDL/Decoder/SharedSpec/Template.hs
   test/KDL/__snapshots__/DecoderSpec.snap.md
   test/KDL/__snapshots__/ParserSpec.snap.md
   test/KDL/__snapshots__/RenderSpec.snap.md
