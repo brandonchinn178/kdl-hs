@@ -1,3 +1,7 @@
+## v1.1.1
+
+* Fix running tests with sdist bundle
+
 ## v1.1.0
 
 * Rename `KDL.text` to `KDL.string`
