@@ -14,6 +14,7 @@ module KDL.Decoder.Internal.Error (
   renderDecodeError,
 ) where
 
+import Control.Exception (Exception (..))
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
