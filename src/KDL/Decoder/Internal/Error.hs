@@ -34,6 +34,9 @@ data DecodeError = DecodeError
   }
   deriving (Show, Eq)
 
+instance Exception DecodeError where
+  displayException = Text.unpack . renderDecodeError
+
 type BaseDecodeError = (Context, DecodeErrorKind)
 type Context = [ContextItem]
 
