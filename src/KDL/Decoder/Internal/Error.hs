@@ -14,6 +14,7 @@ module KDL.Decoder.Internal.Error (
   renderDecodeError,
 ) where
 
+import Control.Exception (Exception (..))
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
@@ -33,6 +34,9 @@ data DecodeError = DecodeError
   , errors :: NonEmpty BaseDecodeError
   }
   deriving (Show, Eq)
+
+instance Exception DecodeError where
+  displayException = Text.unpack . renderDecodeError
 
 type BaseDecodeError = (Context, DecodeErrorKind)
 type Context = [ContextItem]
