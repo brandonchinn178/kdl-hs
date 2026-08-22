@@ -59,7 +59,7 @@ data TypedValueSchema = TypedValueSchema
   deriving (Show, Eq)
 
 data instance SchemaItem Value
-  = TextSchema
+  = StringSchema
   | NumberSchema
   | BoolSchema
   | NullSchema

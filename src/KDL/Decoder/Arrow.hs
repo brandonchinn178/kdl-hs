@@ -1019,7 +1019,7 @@ any = valueDataDecoderPrim (SchemaOr $ map SchemaOne [minBound .. maxBound]) pur
 
 -- | Decode a KDL string value.
 string :: DecodeArrow Value a Text
-string = valueDataDecoderPrim (SchemaOne TextSchema) $ \case
+string = valueDataDecoderPrim (SchemaOne StringSchema) $ \case
   Value{data_ = String s} -> pure s
   v -> decodeThrow DecodeError_ValueDecodeFail{expectedType = "string", value = v}
 

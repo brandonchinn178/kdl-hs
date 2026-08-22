@@ -58,7 +58,7 @@ spec = do
                             , dataSchema =
                                 KDL.SchemaOr
                                   [ KDL.SchemaOne KDL.BoolSchema
-                                  , KDL.SchemaOne KDL.TextSchema
+                                  , KDL.SchemaOne KDL.StringSchema
                                   ]
                             }
                     }
@@ -72,7 +72,7 @@ spec = do
                               KDL.TypedValueSchema
                                 { typeHint = typeRep $ Proxy @String
                                 , validTypeAnns = ["string"]
-                                , dataSchema = KDL.SchemaOne KDL.TextSchema
+                                , dataSchema = KDL.SchemaOne KDL.StringSchema
                                 }
                         }
                   , KDL.SchemaAnd []
@@ -86,7 +86,7 @@ spec = do
                           KDL.TypedValueSchema
                             { typeHint = typeRep $ Proxy @Text
                             , validTypeAnns = ["string"]
-                            , dataSchema = KDL.SchemaOne KDL.TextSchema
+                            , dataSchema = KDL.SchemaOne KDL.StringSchema
                             }
                     }
               , KDL.SchemaOne . KDL.NodeNamed "baz" $
