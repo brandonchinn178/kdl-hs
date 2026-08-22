@@ -15,6 +15,7 @@ module KDL.Decoder.Internal.DecodeM (
   runDecodeM,
   decodeThrow,
   failM,
+  mapErrors,
   addContext,
   discardHints,
 ) where

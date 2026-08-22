@@ -320,6 +320,26 @@ apiSpec = do
             , "  Expected string, got: 1"
             ]
 
+      it "shows label on missing arg" $ do
+        let config = "foo"
+            decoder = KDL.document $ _DO_
+              _STMT_(KDL.label "value" $ KDL.argAt @Int "foo")
+        KDL.decodeWith decoder config
+          `shouldSatisfy` decodeErrorMsg
+            [ "At: foo #0"
+            , "  Expected arg 'value'"
+            ]
+
+      it "shows label on invalid arg" $ do
+        let config = "foo 1"
+            decoder = KDL.document $ _DO_
+              _STMT_(KDL.label "value" $ KDL.argAt @Text "foo")
+        KDL.decodeWith decoder config
+          `shouldSatisfy` decodeErrorMsg
+            [ "At: foo #0 > arg 'value'"
+            , "  Expected string, got: 1"
+            ]
+
     -- Most behaviors tested with `argAt`
     describe "argAtWith" $ do
       it "gets argument at a node" $ do
@@ -646,6 +666,26 @@ apiSpec = do
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
             , "  Unexpected arg #1: 2"
+            ]
+
+      it "shows label on missing arg" $ do
+        let config = "foo"
+            decoder = _DO_
+              _STMT_(KDL.label "value" $ KDL.arg @Int)
+        decodeNode "foo" decoder config
+          `shouldSatisfy` decodeErrorMsg
+            [ "At: foo #0"
+            , "  Expected arg 'value'"
+            ]
+
+      it "shows label on invalid arg" $ do
+        let config = "foo test"
+            decoder = _DO_
+              _STMT_(KDL.label "value" $ KDL.arg @Int)
+        decodeNode "foo" decoder config
+          `shouldSatisfy` decodeErrorMsg
+            [ "At: foo #0 > arg 'value'"
+            , "  Expected number, got: test"
             ]
 
     -- Most behaviors tested with `arg`
