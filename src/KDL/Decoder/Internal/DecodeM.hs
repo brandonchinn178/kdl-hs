@@ -32,6 +32,16 @@ data DecodeM a
   = DecodeM_Found a DecodeHints
   | DecodeM_Fail (NonEmpty BaseDecodeError)
 
+-- | Hints to provide additional context in a future error after a successful
+-- branch.
+--
+-- Take this motivating example: a node takes an arbitrary number of string
+-- args. If you pass some strings then a number, it'll successfully parse up to
+-- the number and return success, only for the node to fail later with
+-- "unexpected argument: 123". But the true error was
+-- "unexpected number, expected string".
+type DecodeHints = [BaseDecodeError]
+
 instance Functor DecodeM where
   fmap f = \case
     DecodeM_Found a es -> DecodeM_Found (f a) es
@@ -41,8 +51,8 @@ instance Applicative DecodeM where
   l <*> r =
     case (l, r) of
       (DecodeM_Found f es1, DecodeM_Found a es2) -> DecodeM_Found (f a) (es1 <> es2)
-      (DecodeM_Found _ es1, DecodeM_Fail es2) -> DecodeM_Fail (mergeErrorsL (fromHints es1) es2)
-      (DecodeM_Fail es1, DecodeM_Found _ es2) -> DecodeM_Fail (mergeErrorsR es1 (fromHints es2))
+      (DecodeM_Found _ es1, DecodeM_Fail es2) -> DecodeM_Fail (mergeHintsL es1 es2)
+      (DecodeM_Fail es1, DecodeM_Found _ es2) -> DecodeM_Fail (mergeHintsR es1 es2)
       (DecodeM_Fail es1, DecodeM_Fail es2) -> DecodeM_Fail (mergeErrors es1 es2)
 instance Monad DecodeM where
   (>>) = (*>)
@@ -52,7 +62,7 @@ instance Monad DecodeM where
       DecodeM_Found a es1 ->
         case k a of
           DecodeM_Found b es2 -> DecodeM_Found b (es1 <> es2)
-          DecodeM_Fail es2 -> DecodeM_Fail (mergeErrorsL (fromHints es1) es2)
+          DecodeM_Fail es2 -> DecodeM_Fail (mergeHintsL es1 es2)
 instance Alternative DecodeM where
   empty = failM "<empty>"
   l <|> r =
@@ -60,7 +70,7 @@ instance Alternative DecodeM where
       DecodeM_Found a es1 -> DecodeM_Found a es1
       DecodeM_Fail es1 ->
         case r of
-          DecodeM_Found a es2 -> DecodeM_Found a (toHints es1 <> es2)
+          DecodeM_Found a es2 -> DecodeM_Found a (NonEmpty.toList es1 <> es2)
           DecodeM_Fail es2 -> DecodeM_Fail (mergeErrors es1 es2)
 
 -- | Run a 'DecodeM' action and return the result or the deepest error found.
@@ -68,41 +78,6 @@ runDecodeM :: DecodeM a -> Either DecodeError a
 runDecodeM = \case
   DecodeM_Found a _ -> Right a
   DecodeM_Fail errors -> Left DecodeError{filepath = Nothing, errors}
-
-{----- DecodeHints -----}
-
--- | Hints to provide additional context in a future error after a successful
--- branch.
---
--- Take this motivating example: a node takes an arbitrary number of string
--- args. If you pass some strings then a number, it'll successfully parse up to
--- the number and return success, only for the node to fail later with
--- "unexpected argument: 123". But the true error was
--- "unexpected number, expected string".
-data DecodeHints
-  = DecodeHints [BaseDecodeError]
-  | DecodeHints_Clear
-
-instance Semigroup DecodeHints where
-  (<>) = \cases
-    (DecodeHints es1) (DecodeHints es2) -> DecodeHints (es1 <> es2)
-    _ DecodeHints_Clear -> mempty
-    DecodeHints_Clear x -> x
-instance Monoid DecodeHints where
-  mempty = DecodeHints []
-
-mapDecodeHints :: (BaseDecodeError -> BaseDecodeError) -> DecodeHints -> DecodeHints
-mapDecodeHints f = \case
-  DecodeHints es -> DecodeHints (map f es)
-  DecodeHints_Clear -> DecodeHints_Clear
-
-fromHints :: DecodeHints -> Maybe (NonEmpty BaseDecodeError)
-fromHints = \case
-  DecodeHints es -> NonEmpty.nonEmpty es
-  DecodeHints_Clear -> Nothing
-
-toHints :: NonEmpty BaseDecodeError -> DecodeHints
-toHints = DecodeHints . NonEmpty.toList
 
 {----- mergeErrors -----}
 
@@ -118,23 +93,23 @@ mergeErrors es1 es2 =
  where
   key = length . fst . NonEmpty.head
 
-mergeErrorsL ::
-  Maybe (NonEmpty BaseDecodeError) ->
+mergeHintsL ::
+  DecodeHints ->
   NonEmpty BaseDecodeError ->
   NonEmpty BaseDecodeError
-mergeErrorsL l r = maybe r (\l' -> mergeErrors l' r) l
+mergeHintsL l r = maybe r (\l' -> mergeErrors l' r) (NonEmpty.nonEmpty l)
 
-mergeErrorsR ::
+mergeHintsR ::
   NonEmpty BaseDecodeError ->
-  Maybe (NonEmpty BaseDecodeError) ->
+  DecodeHints ->
   NonEmpty BaseDecodeError
-mergeErrorsR l r = maybe l (\r' -> mergeErrors l r') r
+mergeHintsR l r = maybe l (\r' -> mergeErrors l r') (NonEmpty.nonEmpty r)
 
 {----- DecodeM operations -----}
 
 mapErrors :: (BaseDecodeError -> BaseDecodeError) -> DecodeM a -> DecodeM a
 mapErrors f = \case
-  DecodeM_Found a es -> DecodeM_Found a (mapDecodeHints f es)
+  DecodeM_Found a es -> DecodeM_Found a (map f es)
   DecodeM_Fail es -> DecodeM_Fail (fmap f es)
 
 -- | Throw an error.
@@ -152,5 +127,5 @@ addContext ctxItem = mapErrors (first (ctxItem :))
 -- | Discard hints after validating that an error context is successful.
 discardHints :: DecodeM a -> DecodeM a
 discardHints = \case
-  DecodeM_Found a _ -> DecodeM_Found a DecodeHints_Clear
+  DecodeM_Found a _ -> DecodeM_Found a mempty
   DecodeM_Fail es -> DecodeM_Fail es
