@@ -59,8 +59,8 @@ data DecodeErrorKind
   = DecodeError_Custom Text
   | DecodeError_ParseError Text
   | DecodeError_ExpectedNode {name :: Text, index :: Int}
-  | DecodeError_ExpectedArg {index :: Int, label :: Maybe Text}
-  | DecodeError_ExpectedProp {name :: Text}
+  | DecodeError_ExpectedArg {index :: Int, label :: Maybe Text, expectedTypes :: [Text]}
+  | DecodeError_ExpectedProp {name :: Text, expectedTypes :: [Text]}
   | DecodeError_MismatchedAnn {givenAnn :: Identifier, validAnns :: [Text]}
   | DecodeError_ValueDecodeFail {expectedType :: Text, value :: Value}
   | DecodeError_UnexpectedNode {identifier :: Identifier, index :: Int}
@@ -107,8 +107,21 @@ renderDecodeError decodeError =
     DecodeError_ExpectedNode{..}
       | index == 0 -> "Expected node: " <> name
       | otherwise -> "Expected another node: " <> name
-    DecodeError_ExpectedArg{..} -> "Expected " <> renderArg index label
-    DecodeError_ExpectedProp{..} -> "Expected prop: " <> name
+    DecodeError_ExpectedArg{..} ->
+      Text.concat
+        [ "Expected "
+        , renderArg index label
+        , if null expectedTypes
+            then ""
+            else " with type: " <> oxfordList "or" expectedTypes
+        ]
+    DecodeError_ExpectedProp{..} ->
+      Text.concat
+        [ "Expected prop '" <> name <> "'"
+        , if null expectedTypes
+            then ""
+            else " with type: " <> oxfordList "or" expectedTypes
+        ]
     DecodeError_MismatchedAnn{..} -> "Expected annotation to be one of " <> showT validAnns <> ", got: " <> renderIdentifier givenAnn
     DecodeError_ValueDecodeFail{..} -> "Expected " <> expectedType <> ", got: " <> renderValue value
     DecodeError_UnexpectedNode{..} -> "Unexpected node: " <> renderIdentifier identifier <> " #" <> showT index
@@ -116,6 +129,15 @@ renderDecodeError decodeError =
     DecodeError_UnexpectedProp{..} -> "Unexpected prop: " <> renderIdentifier identifier <> "=" <> renderValue value
 
   renderArg index label = "arg " <> maybe ("#" <> showT index) (\s -> "'" <> s <> "'") label
+
+  oxfordList conj = \case
+    [x] -> x
+    [x, y] -> Text.unwords [x, conj, y]
+    xs -> Text.intercalate ", " $ mapLast ((conj <> " ") <>) xs
+  mapLast f = \case
+    [] -> []
+    [x] -> [f x]
+    x : xs -> x : mapLast f xs
 
   -- Replace with Text.show after requiring at least text-2.1.2
   showT :: (Show a) => a -> Text

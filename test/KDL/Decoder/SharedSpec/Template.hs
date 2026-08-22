@@ -27,7 +27,8 @@ module KDL.Decoder.SharedSpec.MODULE_NAME (
   decodeValueSpec,
 ) where
 
-import Control.Monad (forM_, unless)
+import Control.Applicative ((<|>))
+import Control.Monad (forM_, unless, void)
 import Data.Map qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -307,7 +308,7 @@ apiSpec = do
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
-            , "  Expected arg #0"
+            , "  Expected arg #0 with type: number"
             ]
 
       it "fails if arg fails to parse" $ do
@@ -327,7 +328,7 @@ apiSpec = do
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
-            , "  Expected arg 'value'"
+            , "  Expected arg 'value' with type: number"
             ]
 
       it "shows label on invalid arg" $ do
@@ -645,7 +646,7 @@ apiSpec = do
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
-            , "  Expected arg #0"
+            , "  Expected arg #0 with type: number"
             ]
 
       it "fails if argument fails to parse" $ do
@@ -675,7 +676,17 @@ apiSpec = do
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
-            , "  Expected arg 'value'"
+            , "  Expected arg 'value' with type: number"
+            ]
+
+      it "shows expected types on missing arg" $ do
+        let config = "foo"
+            decoder = _DO_
+              _STMT_(KDL.label "value" $ KDL.argWith $ void KDL.number <|> void KDL.string)
+        decodeNode "foo" decoder config
+          `shouldSatisfy` decodeErrorMsg
+            [ "At: foo #0"
+            , "  Expected arg 'value' with type: number or string"
             ]
 
       it "shows label on invalid arg" $ do
@@ -773,7 +784,7 @@ apiSpec = do
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
-            , "  Expected prop: test"
+            , "  Expected prop 'test' with type: number"
             ]
 
       it "fails if prop fails to parse" $ do
@@ -794,6 +805,16 @@ apiSpec = do
           `shouldSatisfy` decodeErrorMsg
             [ "At: foo #0"
             , "  Unexpected prop: b=2"
+            ]
+
+      it "shows expected types on missing prop" $ do
+        let config = "foo 123"
+            decoder = _DO_
+              _STMT_(KDL.propWith "test" $ void KDL.number <|> void KDL.string)
+        decodeNode "foo" decoder config
+          `shouldSatisfy` decodeErrorMsg
+            [ "At: foo #0"
+            , "  Expected prop 'test' with type: number or string"
             ]
 
     -- Most behaviors tested with `prop`
