@@ -131,6 +131,7 @@ import KDL.Decoder.Schema (
   SchemaOf,
   TypedNodeSchema (..),
   TypedValueSchema (..),
+  getValueSchemaNames,
  )
 import KDL.Parser (parse, parseFile)
 import KDL.Types (
@@ -678,15 +679,23 @@ argWith' =
   withTypedValueDecoder $ \schema decodeValue ->
     DecodeArrow (SchemaOne $ NodeArg schema) $ \a -> do
       index <- StateT.gets getArgIndex
+      let
+        expectedArgError =
+          DecodeError_ExpectedArg
+            { index
+            , label = Nothing
+            , expectedTypes = getValueSchemaNames schema.dataSchema
+            }
+        argContext = ContextArg{index, label = Nothing}
 
       entries <- StateT.gets (.object.entries)
       (entry, entries') <-
-        maybe (Trans.lift $ decodeThrow DecodeError_ExpectedArg{index, label = Nothing}) pure $
+        maybe (Trans.lift $ decodeThrow expectedArgError) pure $
           extractFirst (isNothing . (.name)) entries
       StateT.modify $ \s -> s{object = s.object{entries = entries'}}
 
       b <-
-        Trans.lift . addContext ContextArg{index, label = Nothing} $
+        Trans.lift . addContext argContext $
           decodeValue a entry.value
       StateT.modify $ \s -> s{history = s.history{argsSeen = s.history.argsSeen + 1}}
       pure b
@@ -733,8 +742,14 @@ propWith' :: forall a b. (Typeable b) => Text -> [Text] -> ValueDecodeArrow a b 
 propWith' name =
   withTypedValueDecoder $ \schema decodeValue ->
     DecodeArrow (SchemaOne $ NodeProp name schema) $ \a -> do
+      let expectedPropError =
+            DecodeError_ExpectedProp
+              { name
+              , expectedTypes = getValueSchemaNames schema.dataSchema
+              }
+
       decodeOnePropWhere (== name) (decodeValue a)
-        >>= maybe (Trans.lift $ decodeThrow DecodeError_ExpectedProp{name}) (pure . snd)
+        >>= maybe (Trans.lift $ decodeThrow expectedPropError) (pure . snd)
 
 decodeOnePropWhere ::
   (Text -> Bool) ->

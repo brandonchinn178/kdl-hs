@@ -1,5 +1,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module KDL.Decoder.Schema (
@@ -10,6 +11,10 @@ module KDL.Decoder.Schema (
   TypedValueSchema (..),
   schemaJoin,
   schemaAlt,
+
+  -- * Fold over schema items
+  foldSchema,
+  getValueSchemaNames,
 ) where
 
 import Data.Text (Text)
@@ -82,3 +87,22 @@ schemaAlt = curry $ \case
   (SchemaOr [], r) -> r
   (SchemaOr l, r) -> SchemaOr (l <> [r])
   (l, r) -> SchemaOr [l, r]
+
+{------ Fold over schema items -----}
+
+foldSchema :: (SchemaItem a -> b) -> SchemaOf a -> [b]
+foldSchema f = go
+ where
+  go = \case
+    SchemaOne valSchema -> [f valSchema]
+    SchemaSome s -> go s
+    SchemaAnd ss -> concatMap go ss
+    SchemaOr ss -> concatMap go ss
+    SchemaUnknown -> []
+
+getValueSchemaNames :: SchemaOf Value -> [Text]
+getValueSchemaNames = foldSchema $ \case
+  StringSchema -> "string"
+  NumberSchema -> "number"
+  BoolSchema -> "bool"
+  NullSchema -> "null"
