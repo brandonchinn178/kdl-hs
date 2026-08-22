@@ -2,10 +2,12 @@
 
 module KDL.DecoderSpec (spec) where
 
-import Control.Monad (when)
+import Control.Monad (unless, when)
+import Data.Char (isAlpha)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import KDL qualified
+import KDL.TestUtils.Error (decodeErrorMsg)
 import KDL.Types (Node)
 import Skeletest
 import Skeletest.Predicate qualified as P
@@ -76,9 +78,38 @@ spec = do
               $ KDL.optional (KDL.prop @Text "a")
       KDL.decodeFileWith decoder file `shouldSatisfy` P.returns (decodeErrorMsgSnapshot (Just file))
 
+  spec_regressionTests
+
 newtype FixtureKdlFile = FixtureKdlFile FilePath
 
 instance Fixture FixtureKdlFile where
   fixtureAction = do
     FixtureTmpDir tmpdir <- getFixture
     pure . noCleanup $ FixtureKdlFile (tmpdir </> "kdl-hs-test.kdl")
+
+{----- Regression tests -----}
+
+spec_regressionTests :: Spec
+spec_regressionTests = do
+  describe "Regression tests" $ do
+    it "fails with correct error when error occurs in another node after backtracking in a previous node" $ do
+      let config = "user a { foo { bar } }; user a1"
+          decoder =
+            KDL.document . KDL.many . KDL.nodeWith "user" $ do
+              _ <-
+                KDL.children . KDL.many . KDL.nodeWith "foo" $ do
+                  KDL.children . KDL.nodeWith "bar" $ do
+                    KDL.children $
+                      sequence
+                        [ KDL.optional $ KDL.node @KDL.Node "opt1"
+                        , KDL.optional $ KDL.node @KDL.Node "opt2"
+                        ]
+              KDL.argWith $ do
+                s <- KDL.string
+                unless (Text.all isAlpha s) $ do
+                  KDL.fail "Invalid username"
+      KDL.decodeWith decoder config
+        `shouldSatisfy` decodeErrorMsg
+          [ "At: user #1 > arg #0"
+          , "  Invalid username"
+          ]

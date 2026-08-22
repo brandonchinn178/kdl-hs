@@ -68,7 +68,10 @@ executable kdl-hs-test-decoder
 
 test-suite kdl-tests
   type: exitcode-stdio-1.0
-  ghc-options: -F -pgmF=skeletest-preprocessor
+  ghc-options:
+    -F -pgmF=skeletest-preprocessor
+    -- skeletest animations during callProcess
+    -threaded
   build-tool-depends:
     , skeletest:skeletest-preprocessor
     , kdl-hs:kdl-hs-test-decoder

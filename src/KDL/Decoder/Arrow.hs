@@ -183,10 +183,7 @@ document :: NodeListDecoder a -> DocumentDecoder a
 document decoder =
   UnsafeDocumentDecoder
     decoder
-      { run = \() -> do
-          a <- decoder.run ()
-          validateNodeList
-          pure a
+      { run = \() -> decoder.run () <* validateNodeList
       }
 
 -- | Get the schema of a 'DocumentDecoder'.
@@ -569,7 +566,7 @@ withTypedNodeDecoder k typeAnns decoder = k schema decodeNode
       , validTypeAnns = typeAnns
       , nodeSchema = decoder.schema
       }
-  decodeNode a node_ = do
+  decodeNode a node_ = discardHints $ do
     validateAnn typeAnns node_.ann
     runDecodeStateM node_ emptyDecodeHistory $ do
       -- TODO: add typeHint to Context
