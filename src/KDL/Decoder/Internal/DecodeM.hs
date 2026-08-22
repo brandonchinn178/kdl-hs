@@ -14,6 +14,7 @@ module KDL.Decoder.Internal.DecodeM (
   runDecodeM,
   decodeThrow,
   failM,
+  mapErrors,
   addContext,
 ) where
 

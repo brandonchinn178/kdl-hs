@@ -3,6 +3,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module KDL.Decoder.Arrow (
@@ -84,6 +85,9 @@ module KDL.Decoder.Arrow (
   number,
   bool,
   null,
+
+  -- * Modifiers
+  label,
 
   -- * Combinators
   oneOf,
@@ -211,11 +215,7 @@ validateNodeList = do
     node_ : _ -> do
       let identifier = node_.name
       index <- StateT.gets (getNodeIndex identifier.value)
-      Trans.lift . decodeThrow $
-        DecodeError_UnexpectedNode
-          { identifier = identifier
-          , index = index
-          }
+      Trans.lift . decodeThrow $ DecodeError_UnexpectedNode{identifier, index}
 
 -- | Decode a node with the given name using a 'DecodeNode' instance.
 --
@@ -277,7 +277,7 @@ nodeWith' name =
         Just (_, b) -> pure b
         Nothing -> do
           index <- StateT.gets (getNodeIndex name)
-          Trans.lift $ decodeThrow DecodeError_ExpectedNode{name = name, index = index}
+          Trans.lift $ decodeThrow DecodeError_ExpectedNode{name, index}
 
 decodeFirstNodeWhere ::
   (Node -> Bool) ->
@@ -293,7 +293,7 @@ decodeFirstNodeWhere matcher decodeNode = do
       index <- StateT.gets (getNodeIndex name.value)
       StateT.modify $ \s -> s{object = s.object{nodes = nodes'}}
       b <-
-        Trans.lift . addContext ContextNode{name = name, index = index} $
+        Trans.lift . addContext ContextNode{name, index} $
           decodeNode node_
       StateT.modify $ \s -> s{history = s.history{nodesSeen = inc name.value s.history.nodesSeen}}
       pure $ Just (node_, b)
@@ -582,17 +582,9 @@ validateNode = do
     [] -> pure ()
     Entry{name = Nothing, value} : _ -> do
       index <- StateT.gets getArgIndex
-      Trans.lift . decodeThrow $
-        DecodeError_UnexpectedArg
-          { index = index
-          , value = value
-          }
+      Trans.lift . decodeThrow $ DecodeError_UnexpectedArg{index, value}
     Entry{name = Just identifier, value} : _ -> do
-      Trans.lift . decodeThrow $
-        DecodeError_UnexpectedProp
-          { identifier = identifier
-          , value = value
-          }
+      Trans.lift . decodeThrow $ DecodeError_UnexpectedProp{identifier, value}
   case node_.children of
     Nothing -> pure ()
     Just children_ -> do
@@ -635,7 +627,7 @@ instance DecodeNode Node where
     emptyNode name =
       Node
         { ann = Nothing
-        , name = name
+        , name
         , entries = []
         , children = Nothing
         , ext = def
@@ -692,12 +684,12 @@ argWith' =
 
       entries <- StateT.gets (.object.entries)
       (entry, entries') <-
-        maybe (Trans.lift $ decodeThrow DecodeError_ExpectedArg{index = index}) pure $
+        maybe (Trans.lift $ decodeThrow DecodeError_ExpectedArg{index, label = Nothing}) pure $
           extractFirst (isNothing . (.name)) entries
       StateT.modify $ \s -> s{object = s.object{entries = entries'}}
 
       b <-
-        Trans.lift . addContext ContextArg{index = index} $
+        Trans.lift . addContext ContextArg{index, label = Nothing} $
           decodeValue a entry.value
       StateT.modify $ \s -> s{history = s.history{argsSeen = s.history.argsSeen + 1}}
       pure b
@@ -745,7 +737,7 @@ propWith' name =
   withTypedValueDecoder $ \schema decodeValue ->
     DecodeArrow (SchemaOne $ NodeProp name schema) $ \a -> do
       decodeOnePropWhere (== name) (decodeValue a)
-        >>= maybe (Trans.lift $ decodeThrow DecodeError_ExpectedProp{name = name}) (pure . snd)
+        >>= maybe (Trans.lift $ decodeThrow DecodeError_ExpectedProp{name}) (pure . snd)
 
 decodeOnePropWhere ::
   (Text -> Bool) ->
@@ -758,7 +750,7 @@ decodeOnePropWhere matcher decodeValue = do
     Just (name, prop_, entries') -> do
       StateT.modify $ \s -> s{object = s.object{entries = entries'}}
       b <-
-        Trans.lift . addContext ContextProp{name = name} $
+        Trans.lift . addContext ContextProp{name} $
           decodeValue prop_.value
       StateT.modify $ \s -> s{history = s.history{propsSeen = Set.insert name s.history.propsSeen}}
       pure $ Just (name, b)
@@ -1051,6 +1043,39 @@ null :: DecodeArrow Value a ()
 null = valueDataDecoderPrim (SchemaOne NullSchema) $ \case
   Value{data_ = Null} -> pure ()
   v -> decodeThrow DecodeError_ValueDecodeFail{expectedType = "null", value = v}
+
+{----- Modifiers -----}
+
+-- | Add a label to any errors that occur in the given decoder.
+--
+-- Currently only labels arguments.
+--
+-- Behavior is undefined if multiple labellable things are being decoded.
+--
+-- === __Example__
+--
+-- @
+-- KDL.label "name" KDL.arg
+-- KDL.label "name" $ KDL.argAt "foo"
+-- @
+label :: Text -> DecodeArrow o a b -> DecodeArrow o a b
+label name decoder =
+  decoder
+    { run = \a ->
+        StateT.mapStateT (mapErrors addLabel) $
+          decoder.run a
+    }
+ where
+  addLabel (ctx, kind) =
+    let ctx' =
+          flip map ctx $ \case
+            ContextArg{label = _, ..} -> ContextArg{label = Just name, ..}
+            item -> item
+        kind' =
+          case kind of
+            DecodeError_ExpectedArg{label = _, ..} -> DecodeError_ExpectedArg{label = Just name, ..}
+            _ -> kind
+     in (ctx', kind')
 
 {----- Utilities -----}
 

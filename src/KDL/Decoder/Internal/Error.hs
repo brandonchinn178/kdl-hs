@@ -44,6 +44,7 @@ data ContextItem
       }
   | ContextArg
       { index :: Int
+      , label :: Maybe Text
       }
   | ContextProp
       { name :: Identifier
@@ -54,7 +55,7 @@ data DecodeErrorKind
   = DecodeError_Custom Text
   | DecodeError_ParseError Text
   | DecodeError_ExpectedNode {name :: Text, index :: Int}
-  | DecodeError_ExpectedArg {index :: Int}
+  | DecodeError_ExpectedArg {index :: Int, label :: Maybe Text}
   | DecodeError_ExpectedProp {name :: Text}
   | DecodeError_MismatchedAnn {givenAnn :: Identifier, validAnns :: [Text]}
   | DecodeError_ValueDecodeFail {expectedType :: Text, value :: Value}
@@ -92,7 +93,7 @@ renderDecodeError decodeError =
     | otherwise = Text.intercalate " > " . map renderCtxItem $ items
   renderCtxItem = \case
     ContextNode{..} -> renderIdentifier name <> " #" <> showT index
-    ContextArg{..} -> "arg #" <> showT index
+    ContextArg{..} -> renderArg index label
     ContextProp{..} -> "prop " <> renderIdentifier name
 
   renderErrors = map ("  " <>) . concatMap (Text.lines . renderError)
@@ -102,13 +103,15 @@ renderDecodeError decodeError =
     DecodeError_ExpectedNode{..}
       | index == 0 -> "Expected node: " <> name
       | otherwise -> "Expected another node: " <> name
-    DecodeError_ExpectedArg{..} -> "Expected arg #" <> showT index
+    DecodeError_ExpectedArg{..} -> "Expected " <> renderArg index label
     DecodeError_ExpectedProp{..} -> "Expected prop: " <> name
     DecodeError_MismatchedAnn{..} -> "Expected annotation to be one of " <> showT validAnns <> ", got: " <> renderIdentifier givenAnn
     DecodeError_ValueDecodeFail{..} -> "Expected " <> expectedType <> ", got: " <> renderValue value
     DecodeError_UnexpectedNode{..} -> "Unexpected node: " <> renderIdentifier identifier <> " #" <> showT index
     DecodeError_UnexpectedArg{..} -> "Unexpected arg #" <> showT index <> ": " <> renderValue value
     DecodeError_UnexpectedProp{..} -> "Unexpected prop: " <> renderIdentifier identifier <> "=" <> renderValue value
+
+  renderArg index label = "arg " <> maybe ("#" <> showT index) (\s -> "'" <> s <> "'") label
 
   -- Replace with Text.show after requiring at least text-2.1.2
   showT :: (Show a) => a -> Text
