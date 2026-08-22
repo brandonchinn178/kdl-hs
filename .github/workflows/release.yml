@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       -
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       -
         uses: haskell-actions/parse-cabal-file@v1
         id: cabal_file
@@ -30,7 +30,7 @@ jobs:
       version: ${{ needs.cabal_file.outputs.version }}
     steps:
       -
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       -
         name: Validate CHANGELOG
         run:
@@ -49,9 +49,9 @@ jobs:
 
     steps:
       -
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       -
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: kdl-sdist
           path: ./.release/sdist/
@@ -73,7 +73,7 @@ jobs:
           hackageToken: ${{ secrets[steps.hackage_token_secret.outputs.name] }}
           packagesPath: ./.release/sdist/
       -
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ env.version }}
           body_path: .release/release-notes.md

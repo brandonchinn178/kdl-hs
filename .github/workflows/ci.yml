@@ -28,7 +28,7 @@ jobs:
 
     steps:
       -
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
       -
         id: setup
         name: Set up GHC ${{ matrix.ghc_version }}
@@ -69,7 +69,7 @@ jobs:
         name: Get current month to clear cache
         run: echo "CURR_MONTH=$(date +%B)" | tee -a "$GITHUB_ENV"
       -
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         with:
           path: ${{ steps.setup.outputs.cabal-store }}
           key: ${{ runner.os }}-cabal-cache-${{ env.CURR_MONTH }}-${{ matrix.ghc_version }}-${{ hashFiles('**/plan.json') }}
@@ -91,7 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       -
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
       -
         name: Install hooky
         run: |
@@ -114,7 +114,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       -
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
       -
         id: setup
         name: Set up GHC
@@ -123,7 +123,7 @@ jobs:
         name: Create sdist bundle
         run: cabal sdist --output-directory=.
       -
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: kdl-sdist
           path: kdl-*.tar.gz
