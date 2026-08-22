@@ -1,3 +1,11 @@
+## v1.2.0
+
+* Add `Exception` instance to `DecodeError`
+* Fix error messages after decoder succeeds after backtracking
+* Add `KDL.label`
+* Include type information to errors about expected argument/prop
+* Rename `TextSchema` to `StringSchema`
+
 ## v1.1.1
 
 * Fix running tests with sdist bundle
