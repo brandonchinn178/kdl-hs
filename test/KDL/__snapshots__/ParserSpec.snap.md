@@ -1,17 +1,6 @@
 # test/KDL/ParserSpec.hs
 
-## parse / error messages / Unquoted numeric prop name
-
-```
-1:8:
-  |
-1 | foo 123=123
-  |        ^
-unexpected '='
-expecting children block, decimal point, end of node, exponent, or node prop or arg
-```
-
-## parse / parses a KDL document
+## parse ≫ parses a KDL document
 
 ```haskell
 NodeList
@@ -157,7 +146,18 @@ NodeList
   }
 ```
 
-## parseWith / parses a KDL document with spans
+## parse ≫ error messages ≫ Unquoted numeric prop name
+
+```
+1:8:
+  |
+1 | foo 123=123
+  |        ^
+unexpected '='
+expecting children block, decimal point, end of node, exponent, or node prop or arg
+```
+
+## parseWith ≫ parses a KDL document with spans
 
 ```haskell
 NodeList

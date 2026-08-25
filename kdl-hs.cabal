@@ -97,7 +97,7 @@ test-suite kdl-tests
     , pretty-show
     , process
     , scientific
-    , skeletest
+    , skeletest >= 0.4
     , temporary
     , text
   default-language: GHC2021
