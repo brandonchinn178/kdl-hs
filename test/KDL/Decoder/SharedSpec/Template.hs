@@ -117,8 +117,8 @@ apiSpec = do
               _RETURN_((foo1, foo2))
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: <root>"
-            , "  Expected another node: foo"
+            [ "At: (root)"
+            , "└─ Expected another node: foo"
             ]
 
     -- Most behaviors tested with `node`
@@ -141,8 +141,11 @@ apiSpec = do
               _STMT_(KDL.nodeWith "foo" decodeFoo)
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > arg #0"
-            , "  Expected string, got: 1.0"
+            [ "<input>:1:5:"
+            , "    • Expected string, got: 1.0"
+            , "  │"
+            , "1 │ foo 1.0"
+            , "  │     ^^^"
             ]
 
     -- Most behaviors tested with `nodeWith`
@@ -177,8 +180,11 @@ apiSpec = do
               _STMT_(_APOS_(KDL.nodeWith) "foo" ["FOO"] $ KDL.arg @Int)
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0"
-            , "  Expected annotation to be one of [\"FOO\"], got: test"
+            [ "<input>:1:1:"
+            , "    • Expected annotation to be one of [\"FOO\"], got: test"
+            , "  │"
+            , "1 │ (test)foo 2"
+            , "  │ ^^^^^^^^^^^"
             ]
 
     describe "remainingNodes" $ do
@@ -240,8 +246,11 @@ apiSpec = do
               _STMT_(KDL.remainingNodesWith decodeNode)
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: bar #1 > arg #0"
-            , "  Expected number, got: hello"
+            [ "<input>:1:19:"
+            , "    • Expected number, got: hello"
+            , "  │"
+            , "1 │ foo 1; bar 1; bar hello"
+            , "  │                   ^^^^^"
             ]
 
     -- Most behaviors tested with `remainingNodesWith`
@@ -278,8 +287,11 @@ apiSpec = do
               _STMT_(_APOS_(KDL.remainingNodesWith) ["FOO"] $ KDL.arg @Int)
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #1"
-            , "  Expected annotation to be one of [\"FOO\"], got: test"
+            [ "<input>:1:13:"
+            , "    • Expected annotation to be one of [\"FOO\"], got: test"
+            , "  │"
+            , "1 │ (FOO)foo 1; (test)foo 2"
+            , "  │             ^^^^^^^^^^^"
             ]
 
     describe "argAt" $ do
@@ -297,8 +309,8 @@ apiSpec = do
               _STMT_(KDL.argAt @Int "foo")
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: <root>"
-            , "  Expected node: foo"
+            [ "At: (root)"
+            , "└─ Expected node: foo"
             ]
 
       it "fails if node has no args" $ do
@@ -307,8 +319,11 @@ apiSpec = do
               _STMT_(KDL.argAt @Int "foo")
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0"
-            , "  Expected arg #0 with type: number"
+            [ "<input>:1:1:"
+            , "    • Expected arg #0 with type: number"
+            , "  │"
+            , "1 │ foo"
+            , "  │ ^^^"
             ]
 
       it "fails if arg fails to parse" $ do
@@ -317,8 +332,11 @@ apiSpec = do
               _STMT_(KDL.argAt @Text "foo")
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > arg #0"
-            , "  Expected string, got: 1"
+            [ "<input>:1:5:"
+            , "    • Expected string, got: 1"
+            , "  │"
+            , "1 │ foo 1"
+            , "  │     ^"
             ]
 
       it "shows label on missing arg" $ do
@@ -327,8 +345,11 @@ apiSpec = do
               _STMT_(KDL.label "value" $ KDL.argAt @Int "foo")
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0"
-            , "  Expected arg 'value' with type: number"
+            [ "<input>:1:1:"
+            , "    • Expected arg 'value' with type: number"
+            , "  │"
+            , "1 │ foo"
+            , "  │ ^^^"
             ]
 
       it "shows label on invalid arg" $ do
@@ -337,8 +358,11 @@ apiSpec = do
               _STMT_(KDL.label "value" $ KDL.argAt @Text "foo")
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > arg 'value'"
-            , "  Expected string, got: 1"
+            [ "<input>:1:5:"
+            , "    • Expected string, got: 1"
+            , "  │"
+            , "1 │ foo 1"
+            , "  │     ^"
             ]
 
     -- Most behaviors tested with `argAt`
@@ -381,8 +405,11 @@ apiSpec = do
               _STMT_(_APOS_(KDL.argAtWith) "foo" ["VAL"] KDL.string)
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > arg #0"
-            , "  Expected annotation to be one of [\"VAL\"], got: test"
+            [ "<input>:1:5:"
+            , "    • Expected annotation to be one of [\"VAL\"], got: test"
+            , "  │"
+            , "1 │ foo (test)a"
+            , "  │     ^^^^^^^"
             ]
 
     describe "argsAt" $ do
@@ -410,8 +437,11 @@ apiSpec = do
               _STMT_(KDL.argsAt @Int "foo")
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > arg #1"
-            , "  Expected number, got: asdf"
+            [ "<input>:1:7:"
+            , "    • Expected number, got: asdf"
+            , "  │"
+            , "1 │ foo 1 asdf"
+            , "  │       ^^^^"
             ]
 
     -- Most behaviors tested with `argsAt`
@@ -454,8 +484,11 @@ apiSpec = do
               _STMT_(_APOS_(KDL.argsAtWith) "foo" ["VAL"] KDL.string)
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > arg #1"
-            , "  Expected annotation to be one of [\"VAL\"], got: test"
+            [ "<input>:1:12:"
+            , "    • Expected annotation to be one of [\"VAL\"], got: test"
+            , "  │"
+            , "1 │ foo (VAL)a (test)b"
+            , "  │            ^^^^^^^"
             ]
 
     describe "dashChildrenAt" $ do
@@ -483,8 +516,11 @@ apiSpec = do
               _STMT_(KDL.dashChildrenAt @Int "foo")
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > - #0"
-            , "  Unexpected arg #1: 2"
+            [ "<input>:1:7:"
+            , "    • Unexpected arg #1: 2"
+            , "  │"
+            , "1 │ foo { - 1 2; - 3 4; }"
+            , "  │       ^^^^^"
             ]
 
       it "fails if node has non-dash children" $ do
@@ -493,9 +529,12 @@ apiSpec = do
               _STMT_(KDL.dashChildrenAt @Int "foo")
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0"
-            , "  Unexpected node: bar #0"
-            , "  Expected another node: -"
+            [ "<input>:1:1:"
+            , "    • Expected another node: -"
+            , "    • Unexpected node: bar #0"
+            , "  │"
+            , "1 │ foo { - 1; bar 1 2 3; }"
+            , "  │ ^^^"
             ]
 
       it "fails if any child fails to parse" $ do
@@ -504,8 +543,11 @@ apiSpec = do
               _STMT_(KDL.dashChildrenAt @Int "foo")
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > - #1 > arg #0"
-            , "  Expected number, got: asdf"
+            [ "<input>:1:14:"
+            , "    • Expected number, got: asdf"
+            , "  │"
+            , "1 │ foo { - 1; - asdf; }"
+            , "  │              ^^^^"
             ]
 
     -- Most behaviors tested with `dashChildrenAt`
@@ -548,8 +590,11 @@ apiSpec = do
               _STMT_(_APOS_(KDL.dashChildrenAtWith) "foo" ["VAL"] KDL.string)
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > - #0 > arg #0"
-            , "  Expected annotation to be one of [\"VAL\"], got: test"
+            [ "<input>:1:9:"
+            , "    • Expected annotation to be one of [\"VAL\"], got: test"
+            , "  │"
+            , "1 │ foo { - (test)a; }"
+            , "  │         ^^^^^^^"
             ]
 
     describe "dashNodesAt" $ do
@@ -589,9 +634,12 @@ apiSpec = do
               _STMT_(KDL.dashNodesAt @Node "foo")
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0"
-            , "  Unexpected node: bar #0"
-            , "  Expected another node: -"
+            [ "<input>:1:1:"
+            , "    • Expected another node: -"
+            , "    • Unexpected node: bar #0"
+            , "  │"
+            , "1 │ foo { - 1; bar 1 2 3; }"
+            , "  │ ^^^"
             ]
 
     -- Most behaviors tested with `dashNodesAt`
@@ -612,8 +660,11 @@ apiSpec = do
               _STMT_(KDL.dashNodesAtWith "foo" $ KDL.children $ KDL.argAt @Int "bar")
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > - #1 > bar #0 > arg #0"
-            , "  Expected number, got: test"
+            [ "<input>:1:29:"
+            , "    • Expected number, got: test"
+            , "  │"
+            , "1 │ foo { - { bar 1; }; - { bar test; }; }"
+            , "  │                             ^^^^"
             ]
 
   describe "NodeDecoder" $ do
@@ -645,8 +696,11 @@ apiSpec = do
               _STMT_(KDL.arg @Int)
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0"
-            , "  Expected arg #0 with type: number"
+            [ "<input>:1:1:"
+            , "    • Expected arg #0 with type: number"
+            , "  │"
+            , "1 │ foo"
+            , "  │ ^^^"
             ]
 
       it "fails if argument fails to parse" $ do
@@ -655,8 +709,11 @@ apiSpec = do
               _STMT_(KDL.arg @Int)
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > arg #0"
-            , "  Expected number, got: test"
+            [ "<input>:1:5:"
+            , "    • Expected number, got: test"
+            , "  │"
+            , "1 │ foo test"
+            , "  │     ^^^^"
             ]
 
       it "fails if not all arguments are decoded" $ do
@@ -665,8 +722,11 @@ apiSpec = do
               _STMT_(KDL.arg @Int)
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0"
-            , "  Unexpected arg #1: 2"
+            [ "<input>:1:1:"
+            , "    • Unexpected arg #1: 2"
+            , "  │"
+            , "1 │ foo 1 2 3"
+            , "  │ ^^^^^^^^^"
             ]
 
       it "shows label on missing arg" $ do
@@ -675,8 +735,11 @@ apiSpec = do
               _STMT_(KDL.label "value" $ KDL.arg @Int)
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0"
-            , "  Expected arg 'value' with type: number"
+            [ "<input>:1:1:"
+            , "    • Expected arg 'value' with type: number"
+            , "  │"
+            , "1 │ foo"
+            , "  │ ^^^"
             ]
 
       it "shows expected types on missing arg" $ do
@@ -685,8 +748,11 @@ apiSpec = do
               _STMT_(KDL.label "value" $ KDL.argWith $ void KDL.number <|> void KDL.string)
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0"
-            , "  Expected arg 'value' with type: number or string"
+            [ "<input>:1:1:"
+            , "    • Expected arg 'value' with type: number or string"
+            , "  │"
+            , "1 │ foo"
+            , "  │ ^^^"
             ]
 
       it "shows label on invalid arg" $ do
@@ -695,8 +761,11 @@ apiSpec = do
               _STMT_(KDL.label "value" $ KDL.arg @Int)
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > arg 'value'"
-            , "  Expected number, got: test"
+            [ "<input>:1:5:"
+            , "    • Expected number, got: test"
+            , "  │"
+            , "1 │ foo test"
+            , "  │     ^^^^"
             ]
 
     -- Most behaviors tested with `arg`
@@ -739,8 +808,11 @@ apiSpec = do
               _STMT_(_APOS_(KDL.argWith) ["VAL"] KDL.string)
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > arg #0"
-            , "  Expected annotation to be one of [\"VAL\"], got: test"
+            [ "<input>:1:5:"
+            , "    • Expected annotation to be one of [\"VAL\"], got: test"
+            , "  │"
+            , "1 │ foo (test)a"
+            , "  │     ^^^^^^^"
             ]
 
       it "supports backtracking annotations" $ do
@@ -783,8 +855,11 @@ apiSpec = do
               _STMT_(KDL.prop @Int "test")
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0"
-            , "  Expected prop 'test' with type: number"
+            [ "<input>:1:1:"
+            , "    • Expected prop 'test' with type: number"
+            , "  │"
+            , "1 │ foo 123"
+            , "  │ ^^^^^^^"
             ]
 
       it "fails if prop fails to parse" $ do
@@ -793,8 +868,11 @@ apiSpec = do
               _STMT_(KDL.prop @Int "hello")
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > prop hello"
-            , "  Expected number, got: world"
+            [ "<input>:1:11:"
+            , "    • Expected number, got: world"
+            , "  │"
+            , "1 │ foo hello=world"
+            , "  │           ^^^^^"
             ]
 
       it "fails if not all props are decoded" $ do
@@ -803,8 +881,11 @@ apiSpec = do
               _STMT_(KDL.prop @Int "a")
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0"
-            , "  Unexpected prop: b=2"
+            [ "<input>:1:1:"
+            , "    • Unexpected prop: b=2"
+            , "  │"
+            , "1 │ foo a=1 b=2"
+            , "  │ ^^^^^^^^^^^"
             ]
 
       it "shows expected types on missing prop" $ do
@@ -813,8 +894,11 @@ apiSpec = do
               _STMT_(KDL.propWith "test" $ void KDL.number <|> void KDL.string)
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0"
-            , "  Expected prop 'test' with type: number or string"
+            [ "<input>:1:1:"
+            , "    • Expected prop 'test' with type: number or string"
+            , "  │"
+            , "1 │ foo 123"
+            , "  │ ^^^^^^^"
             ]
 
     -- Most behaviors tested with `prop`
@@ -857,8 +941,11 @@ apiSpec = do
               _STMT_(_APOS_(KDL.propWith) "a" ["VAL"] KDL.number)
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > prop a"
-            , "  Expected annotation to be one of [\"VAL\"], got: test"
+            [ "<input>:1:7:"
+            , "    • Expected annotation to be one of [\"VAL\"], got: test"
+            , "  │"
+            , "1 │ foo a=(test)1"
+            , "  │       ^^^^^^^"
             ]
 
     describe "remainingProps" $ do
@@ -884,8 +971,11 @@ apiSpec = do
               _STMT_(KDL.remainingProps @Int)
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > prop c"
-            , "  Expected number, got: test"
+            [ "<input>:1:19:"
+            , "    • Expected number, got: test"
+            , "  │"
+            , "1 │ foo a=1 b=1 c=2 c=test"
+            , "  │                   ^^^^"
             ]
 
     -- Most behaviors tested with `remainingProps`
@@ -932,8 +1022,11 @@ apiSpec = do
               _STMT_(_APOS_(KDL.remainingPropsWith) ["VAL"] KDL.number)
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > prop b"
-            , "  Expected annotation to be one of [\"VAL\"], got: test"
+            [ "<input>:1:16:"
+            , "    • Expected annotation to be one of [\"VAL\"], got: test"
+            , "  │"
+            , "1 │ foo a=(VAL)1 b=(test)2"
+            , "  │                ^^^^^^^"
             ]
 
     describe "children" $ do
@@ -971,8 +1064,11 @@ apiSpec = do
               _STMT_(KDL.children $ KDL.node @Node "bar")
         decodeNode "foo" decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0"
-            , "  Unexpected node: asdf #0"
+            [ "<input>:1:1:"
+            , "    • Unexpected node: asdf #0"
+            , "  │"
+            , "1 │ foo { asdf; bar; }"
+            , "  │ ^^^"
             ]
 
   describe "ValueDecoder" $ do
@@ -1003,8 +1099,11 @@ apiSpec = do
               _STMT_(KDL.argAtWith "foo" KDL.string)
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > arg #0"
-            , "  Expected string, got: 1"
+            [ "<input>:1:5:"
+            , "    • Expected string, got: 1"
+            , "  │"
+            , "1 │ foo 1"
+            , "  │     ^"
             ]
 
     describe "number" $ do
@@ -1020,8 +1119,11 @@ apiSpec = do
               _STMT_(KDL.argAtWith "foo" KDL.number)
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > arg #0"
-            , "  Expected number, got: asdf"
+            [ "<input>:1:5:"
+            , "    • Expected number, got: asdf"
+            , "  │"
+            , "1 │ foo asdf"
+            , "  │     ^^^^"
             ]
 
     describe "bool" $ do
@@ -1037,8 +1139,11 @@ apiSpec = do
               _STMT_(KDL.argAtWith "foo" KDL.bool)
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > arg #0"
-            , "  Expected bool, got: 1"
+            [ "<input>:1:5:"
+            , "    • Expected bool, got: 1"
+            , "  │"
+            , "1 │ foo 1"
+            , "  │     ^"
             ]
 
     describe "null" $ do
@@ -1054,8 +1159,11 @@ apiSpec = do
               _STMT_(KDL.argAtWith "foo" KDL.null)
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > arg #0"
-            , "  Expected null, got: 1"
+            [ "<input>:1:5:"
+            , "    • Expected null, got: 1"
+            , "  │"
+            , "1 │ foo 1"
+            , "  │     ^"
             ]
 
   describe "Combinators" $ do
@@ -1074,9 +1182,12 @@ apiSpec = do
               _STMT_(KDL.nodeWith "foo" . KDL.many . KDL.argWith $ KDL.oneOf decodeVal)
         KDL.decodeWith decoder config
           `shouldSatisfy` decodeErrorMsg
-            [ "At: foo #0 > arg #1"
-            , "  Expected bool, got: hello"
-            , "  Expected number, got: hello"
+            [ "<input>:1:9:"
+            , "    • Expected number, got: hello"
+            , "    • Expected bool, got: hello"
+            , "  │"
+            , "1 │ foo 123 hello"
+            , "  │         ^^^^^"
             ]
 
     describe "option" $ do
@@ -1120,8 +1231,11 @@ decodeNodeSpec = do
             _STMT_(KDL.node @MyNode "foo")
       KDL.decodeWith decoder config
         `shouldSatisfy` decodeErrorMsg
-          [ "At: foo #0"
-          , "  Invalid argument: 100"
+          [ "<input>:1:1:"
+          , "    • Invalid argument: 100"
+          , "  │"
+          , "1 │ foo 100"
+          , "  │ ^^^^^^^"
           ]
 
     it "decodes valid type ann" $ do
@@ -1136,8 +1250,11 @@ decodeNodeSpec = do
             _STMT_(KDL.node @MyNode "foo")
       KDL.decodeWith decoder config
         `shouldSatisfy` decodeErrorMsg
-          [ "At: foo #0"
-          , "  Expected annotation to be one of [\"MyNode\"], got: bad"
+          [ "<input>:1:1:"
+          , "    • Expected annotation to be one of [\"MyNode\"], got: bad"
+          , "  │"
+          , "1 │ (bad)foo 1"
+          , "  │ ^^^^^^^^^^"
           ]
 
 newtype MyVal = MyVal Double
@@ -1165,8 +1282,11 @@ decodeValueSpec = do
             _STMT_(KDL.argAt @MyVal "foo")
       KDL.decodeWith decoder config
         `shouldSatisfy` decodeErrorMsg
-          [ "At: foo #0 > arg #0"
-          , "  Invalid value: 100.0"
+          [ "<input>:1:5:"
+          , "    • Invalid value: 100.0"
+          , "  │"
+          , "1 │ foo 100.0"
+          , "  │     ^^^^^"
           ]
 
     it "decodes valid type ann" $ do
@@ -1181,6 +1301,9 @@ decodeValueSpec = do
             _STMT_(KDL.argAt @MyVal "foo")
       KDL.decodeWith decoder config
         `shouldSatisfy` decodeErrorMsg
-          [ "At: foo #0 > arg #0"
-          , "  Expected annotation to be one of [\"MyVal\"], got: bad"
+          [ "<input>:1:5:"
+          , "    • Expected annotation to be one of [\"MyVal\"], got: bad"
+          , "  │"
+          , "1 │ foo (bad)1"
+          , "  │     ^^^^^^"
           ]

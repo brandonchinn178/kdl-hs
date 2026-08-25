@@ -9,15 +9,15 @@ module KDL.Decoder.Internal.Error (
   DecodeError (..),
   BaseDecodeError,
   DecodeErrorKind (..),
-  Context,
+  Context (..),
   ContextItem (..),
   renderDecodeError,
 ) where
 
 import Control.Exception (Exception (..))
+import Data.Default (Default (..))
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.Map qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
 import KDL.Render (
@@ -26,8 +26,11 @@ import KDL.Render (
  )
 import KDL.Types (
   Identifier,
+  Span (..),
   Value,
  )
+import System.FilePath (takeFileName)
+import Prelude hiding (span)
 
 data DecodeError = DecodeError
   { filepath :: Maybe FilePath
@@ -39,7 +42,21 @@ instance Exception DecodeError where
   displayException = Text.unpack . renderDecodeError
 
 type BaseDecodeError = (Context, DecodeErrorKind)
-type Context = [ContextItem]
+
+data Context = Context
+  { path :: [ContextItem]
+  , span :: Maybe Span
+  , srcLine :: Maybe Text
+  }
+  deriving (Show, Eq)
+
+instance Default Context where
+  def =
+    Context
+      { path = []
+      , span = Nothing
+      , srcLine = Nothing
+      }
 
 data ContextItem
   = ContextNode
@@ -72,35 +89,79 @@ renderDecodeError :: DecodeError -> Text
 renderDecodeError decodeError =
   Text.intercalate "\n"
     . concatMap renderCtxErrors
-    . groupCtxErrors
+    . NonEmpty.groupAllWith1 groupKey
     $ decodeError.errors
  where
   -- Group errors with the same contexts together
-  groupCtxErrors es =
-    Map.toAscList . Map.fromListWith (<>) $
-      [ (ctx, [e])
-      | (ctx, e) <- NonEmpty.toList es
-      ]
-
-  addPath =
-    case decodeError.filepath of
-      Nothing -> id
-      Just fp -> let msg = "Failed to decode " <> Text.pack fp <> ":" in (msg :)
+  groupKey (ctx, _) = maybe (Left ctx.path) Right ctx.span
 
   renderCtxErrors = \case
     -- Special case parse errors, which shouldn't have a context
-    (_, [DecodeError_ParseError msg]) -> [msg]
-    (ctx, errs) -> addPath $ ("At: " <> renderCtxItems ctx) : renderErrors errs
+    (_, DecodeError_ParseError msg) NonEmpty.:| _ -> [msg]
+    errs ->
+      let (ctx, _) = NonEmpty.head errs
+       in renderCtx ctx $ (map (renderError . snd) $ NonEmpty.toList errs)
 
-  renderCtxItems items
-    | null items = "<root>"
-    | otherwise = Text.intercalate " > " . map renderCtxItem $ items
-  renderCtxItem = \case
+  renderCtx (ctx :: Context) =
+    case ctx.span of
+      Nothing -> renderCtxPath ctx.path
+      Just span -> renderCtxFull span ctx
+
+  -- If we don't have the error span, the best we can do is render the context path:
+  --
+  -- At: foo.kdl > user #0 > arg #0
+  -- ├─ error message
+  -- └─ another error message
+  renderCtxPath path errors =
+    let pathDisplay =
+          Text.intercalate " > " . concat $
+            [ case decodeError.filepath of
+                Nothing -> []
+                Just fp -> [Text.pack $ takeFileName fp]
+            , if null path then ["(root)"] else map renderCtxPathItem path
+            ]
+        errors' =
+          [ (if isLast then "└─ " else "├─ ") <> err
+          | (err, isLast) <- withIsLast errors
+          ]
+     in ("At: " <> pathDisplay) : errors'
+  renderCtxPathItem = \case
     ContextNode{..} -> renderIdentifier name <> " #" <> showT index
     ContextArg{..} -> renderArg index label
     ContextProp{..} -> "prop " <> renderIdentifier name
 
-  renderErrors = map ("  " <>) . concatMap (Text.lines . renderError)
+  -- If we have the error span, show a descriptive error message:
+  --
+  -- foo.kdl:3:16:
+  --     • Expected number, got string
+  --   |
+  -- 3 |     some_child bad-value
+  --   |                ^^^^^^^^^
+  renderCtxFull (span :: Span) ctx errors =
+    let spanDisplay =
+          Text.concat . map (<> ":") $
+            [ maybe "<input>" Text.pack decodeError.filepath
+            , showT span.startLine
+            , showT span.startCol
+            ]
+        errors' = map ("    • " <>) errors
+        preview =
+          case ctx.srcLine of
+            Nothing -> []
+            Just line ->
+              let lineNum = showT span.startLine
+                  spaces n = Text.replicate n " "
+                  renderPrefix isSpace = (if isSpace then spaces (Text.length lineNum) else lineNum) <> " │"
+                  spanLength =
+                    if span.startLine == span.endLine
+                      then span.endCol - span.startCol + 1
+                      else Text.length line - span.startCol + 1
+               in [ renderPrefix True
+                  , renderPrefix False <> " " <> line
+                  , renderPrefix True <> spaces span.startCol <> Text.replicate spanLength "^"
+                  ]
+     in spanDisplay : errors' ++ preview
+
   renderError = \case
     DecodeError_Custom msg -> msg
     DecodeError_ParseError msg -> msg
@@ -134,10 +195,13 @@ renderDecodeError decodeError =
     [x] -> x
     [x, y] -> Text.unwords [x, conj, y]
     xs -> Text.intercalate ", " $ mapLast ((conj <> " ") <>) xs
+
   mapLast f = \case
     [] -> []
     [x] -> [f x]
     x : xs -> x : mapLast f xs
+
+  withIsLast = mapLast (True <$) . map (\x -> (x, False))
 
   -- Replace with Text.show after requiring at least text-2.1.2
   showT :: (Show a) => a -> Text

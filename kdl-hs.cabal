@@ -45,6 +45,7 @@ library
       base < 5
     , containers
     , data-default
+    , filepath
     , megaparsec
     , prettyprinter >= 1.7.0
     , scientific
@@ -97,7 +98,7 @@ test-suite kdl-tests
     , pretty-show
     , process
     , scientific
-    , skeletest
+    , skeletest >= 0.4
     , temporary
     , text
   default-language: GHC2021

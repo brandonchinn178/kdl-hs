@@ -103,10 +103,12 @@ import Control.Applicative (
  )
 import Control.Monad (unless, when)
 import Control.Monad.Trans.Class qualified as Trans
+import Control.Monad.Trans.Except qualified as ExceptT
 import Control.Monad.Trans.State.Strict (StateT)
 import Control.Monad.Trans.State.Strict qualified as StateT
 import Data.Bifunctor (first)
 import Data.Bits (finiteBitSize)
+import Data.Functor.Identity (runIdentity)
 import Data.Int (Int64)
 import Data.List (partition)
 import Data.List.NonEmpty qualified as NonEmpty
@@ -119,6 +121,7 @@ import Data.Scientific qualified as Scientific
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
 import Data.Typeable (Typeable, typeRep)
 import Data.Word (Word16, Word32, Word64, Word8)
 import GHC.Int (Int16, Int32, Int8)
@@ -133,29 +136,23 @@ import KDL.Decoder.Schema (
   TypedValueSchema (..),
   getValueSchemaNames,
  )
-import KDL.Parser (parse, parseFile)
-import KDL.Types (
-  Ann (..),
-  Document,
-  Entry (..),
-  Identifier (..),
-  Node (..),
-  NodeList (..),
-  Value (..),
-  ValueData (..),
-  def,
- )
+import KDL.Parser (ParseConfig (..), parse, parseFile, parseWith)
+import KDL.Types (Ann (..), Document, Entry (..), Identifier (..), IdentifierExtension (..), Node (..), NodeExtension (..), NodeList (..), Span (..), Value (..), ValueData (..), ValueExtension (..), def)
 import Numeric.Natural (Natural)
-import Prelude hiding (any, fail, null)
+import Prelude hiding (any, fail, null, span)
 import Prelude qualified
 
 -- | Decode the given KDL configuration with the given decoder.
 decodeWith :: DocumentDecoder a -> Text -> Either DecodeError a
-decodeWith decoder = decodeFromParseResult decoder Nothing . parse
+decodeWith decoder input = runIdentity $ do
+  let doc = parse input
+  decodeFromParseResult Nothing (pure input) decoder doc
 
 -- | Read KDL configuration from the given file path and decode it with the given decoder.
 decodeFileWith :: DocumentDecoder a -> FilePath -> IO (Either DecodeError a)
-decodeFileWith decoder fp = decodeFromParseResult decoder (Just fp) <$> parseFile fp
+decodeFileWith decoder fp = do
+  doc <- parseFile fp
+  decodeFromParseResult (Just fp) (Text.readFile fp) decoder doc
 
 -- | Decode an already-parsed 'Document' with the given decoder.
 decodeDocWith :: DocumentDecoder a -> Document -> Either DecodeError a
@@ -164,14 +161,48 @@ decodeDocWith (UnsafeDocumentDecoder decoder) doc =
     decoder.run ()
 
 decodeFromParseResult ::
-  DocumentDecoder a ->
+  (Monad m) =>
   Maybe FilePath ->
+  m Text ->
+  DocumentDecoder a ->
   Either Text Document ->
-  Either DecodeError a
-decodeFromParseResult decoder mPath =
-  first (\e -> e{filepath = mPath}) . \case
+  m (Either DecodeError a)
+decodeFromParseResult mPath getInput decoder =
+  firstM augmentError . \case
     Left e -> runDecodeM . decodeThrow $ DecodeError_ParseError e
     Right doc -> decodeDocWith decoder doc
+ where
+  augmentError originalError = runEarlyReturn $ do
+    input <- Trans.lift getInput
+    doc <-
+      case parseWith def{includeSpans = True} input of
+        Right doc -> pure doc
+        -- should not happen; return the plain error if it happens
+        Left _ -> returnE originalError
+    err <-
+      case decodeDocWith decoder doc of
+        Left err -> pure err
+        -- should not happen; return the plain error if it happens
+        Right _ -> returnE originalError
+    pure
+      DecodeError
+        { filepath = mPath
+        , errors = fmap (addSrcLine input) err.errors
+        }
+
+  addSrcLine input =
+    let inputLines = Text.lines input
+        addSrcLine' ctx span = ctx{srcLine = safeIndex (span.startLine - 1) inputLines}
+     in first (\ctx -> maybe ctx (addSrcLine' ctx) ctx.span)
+
+  runEarlyReturn m = ExceptT.runExceptT m >>= either pure pure
+  returnE = ExceptT.throwE
+
+  firstM f = either (fmap Left . f) (pure . Right)
+  safeIndex (n :: Int) = \case
+    _ | n < 0 -> Nothing
+    [] -> Nothing
+    x : xs -> if n == 0 then Just x else safeIndex (n - 1) xs
 
 {----- Decoder -----}
 
@@ -291,11 +322,25 @@ decodeFirstNodeWhere matcher decodeNode = do
       index <- StateT.gets (getNodeIndex name.value)
       StateT.modify $ \s -> s{object = s.object{nodes = nodes'}}
       b <-
-        Trans.lift . addContext ContextNode{name, index} $
+        Trans.lift . addContext (nodeSpan node_) ContextNode{name, index} $
           decodeNode node_
       StateT.modify $ \s -> s{history = s.history{nodesSeen = inc name.value s.history.nodesSeen}}
       pure $ Just (node_, b)
  where
+  -- start of Node span -> end of last Entry span
+  nodeSpan (node_ :: Node) =
+    let startSpan = node_.ext.span
+        endSpan =
+          case NonEmpty.nonEmpty node_.entries of
+            Just entries -> (NonEmpty.last entries).value.ext.span
+            Nothing -> node_.name.ext.span
+     in Span
+          { startLine = startSpan.startLine
+          , startCol = startSpan.startCol
+          , endLine = endSpan.endLine
+          , endCol = endSpan.endCol
+          }
+
   inc k = Map.insertWith (+) k 1
 
 -- | Decode all remaining nodes.
@@ -695,7 +740,7 @@ argWith' =
       StateT.modify $ \s -> s{object = s.object{entries = entries'}}
 
       b <-
-        Trans.lift . addContext argContext $
+        Trans.lift . addContext entry.value.ext.span argContext $
           decodeValue a entry.value
       StateT.modify $ \s -> s{history = s.history{argsSeen = s.history.argsSeen + 1}}
       pure b
@@ -762,7 +807,7 @@ decodeOnePropWhere matcher decodeValue = do
     Just (name, prop_, entries') -> do
       StateT.modify $ \s -> s{object = s.object{entries = entries'}}
       b <-
-        Trans.lift . addContext ContextProp{name} $
+        Trans.lift . addContext prop_.value.ext.span ContextProp{name} $
           decodeValue prop_.value
       StateT.modify $ \s -> s{history = s.history{propsSeen = Set.insert name s.history.propsSeen}}
       pure $ Just (name, b)
@@ -1080,9 +1125,14 @@ label name decoder =
  where
   addLabel (ctx, kind) =
     let ctx' =
-          flip map ctx $ \case
-            ContextArg{label = _, ..} -> ContextArg{label = Just name, ..}
-            item -> item
+          ctx
+            { path =
+                [ case item of
+                    ContextArg{label = _, ..} -> ContextArg{label = Just name, ..}
+                    _ -> item
+                | item <- ctx.path
+                ]
+            }
         kind' =
           case kind of
             DecodeError_ExpectedArg{label = _, ..} -> DecodeError_ExpectedArg{label = Just name, ..}

@@ -22,10 +22,14 @@ module KDL.Decoder.Internal.DecodeM (
 
 import Control.Applicative (Alternative (..))
 import Data.Bifunctor (first)
+import Data.Default (def)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text (Text)
 import KDL.Decoder.Internal.Error
+import KDL.Decoder.Internal.Error qualified as Error
+import KDL.Types (Span)
+import Prelude hiding (span)
 
 -- | The monad that returns either a 'DecodeError' or a result of type @a@.
 data DecodeM a
@@ -91,7 +95,7 @@ mergeErrors es1 es2 =
     EQ -> es1 <> es2
     GT -> es1
  where
-  key = length . fst . NonEmpty.head
+  key = length . (.path) . fst . NonEmpty.head
 
 mergeHintsL ::
   DecodeHints ->
@@ -112,17 +116,29 @@ mapErrors f = \case
   DecodeM_Found a es -> DecodeM_Found a (map f es)
   DecodeM_Fail es -> DecodeM_Fail (fmap f es)
 
+mapErrorContext :: (Error.Context -> Error.Context) -> DecodeM a -> DecodeM a
+mapErrorContext f = mapErrors (first f)
+
 -- | Throw an error.
 decodeThrow :: DecodeErrorKind -> DecodeM a
-decodeThrow e = DecodeM_Fail . NonEmpty.singleton $ ([], e)
+decodeThrow e = DecodeM_Fail . NonEmpty.singleton $ (def, e)
 
 -- | Throw a 'DecodeError_Custom' error.
 failM :: Text -> DecodeM a
 failM = decodeThrow . DecodeError_Custom
 
 -- | Add context to all errors that occur in the given action.
-addContext :: ContextItem -> DecodeM a -> DecodeM a
-addContext ctxItem = mapErrors (first (ctxItem :))
+addContext :: Span -> ContextItem -> DecodeM a -> DecodeM a
+addContext span ctxItem = mapErrorContext $ \ctx ->
+  ctx
+    { path = ctxItem : ctx.path
+    , -- Span should only be attached to the nearest context; i.e. the first
+      -- addContext that runs
+      span = ctx.span <|> span'
+    }
+ where
+  -- Ignore span if it's empty
+  span' = if span == def then Nothing else Just span
 
 -- | Discard hints after validating that an error context is successful.
 discardHints :: DecodeM a -> DecodeM a
