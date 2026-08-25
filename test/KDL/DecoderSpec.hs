@@ -23,6 +23,14 @@ decodeErrorMsgSnapshot mfile = P.left (KDL.renderDecodeError P.>>> sanitize P.>>
 
 spec :: Spec
 spec = do
+  spec_decodeWith
+  spec_decodeFileWith
+  spec_decodeDocWith
+  spec_errorMessages
+  spec_regressionTests
+
+spec_decodeWith :: Spec
+spec_decodeWith = do
   describe "decodeWith" $ do
     it "fails with helpful error if parsing fails" $ do
       let config = "foo 123=123"
@@ -49,6 +57,8 @@ spec = do
               $ KDL.optional (KDL.prop @Text "a")
       KDL.decodeWith decoder config `shouldSatisfy` decodeErrorMsgSnapshot Nothing
 
+spec_decodeFileWith :: Spec
+spec_decodeFileWith = do
   describe "decodeFileWith" $ do
     it "fails with helpful error if parsing fails" $ do
       FixtureKdlFile file <- getFixture
@@ -78,7 +88,44 @@ spec = do
               $ KDL.optional (KDL.prop @Text "a")
       KDL.decodeFileWith decoder file `shouldSatisfy` P.returns (decodeErrorMsgSnapshot (Just file))
 
-  spec_regressionTests
+spec_decodeDocWith :: Spec
+spec_decodeDocWith = do
+  describe "decodeDocWith" $ do
+    it "fails with user-defined error" $ do
+      let config = "foo -1"
+          decoder =
+            KDL.document . KDL.argAtWith "foo" $
+              KDL.withDecoder KDL.number $ \x -> do
+                when (x < 0) $ do
+                  KDL.failM $ "Got negative number: " <> (Text.pack . show) x
+                pure x
+      Right doc <- pure $ KDL.parseWith KDL.def config
+      KDL.decodeDocWith decoder doc
+        `shouldSatisfy` decodeErrorMsgSnapshot Nothing
+
+    it "shows context in deeply nested error" $ do
+      let config = "foo; foo { bar { baz; baz; baz; baz a=1; }; }"
+          decoder =
+            KDL.document
+              . (KDL.many . KDL.nodeWith "foo" . KDL.children)
+              . (KDL.many . KDL.nodeWith "bar" . KDL.children)
+              . (KDL.many . KDL.nodeWith "baz")
+              $ KDL.optional (KDL.prop @Text "a")
+      Right doc <- pure $ KDL.parseWith KDL.def config
+      KDL.decodeDocWith decoder doc
+        `shouldSatisfy` decodeErrorMsgSnapshot Nothing
+
+spec_errorMessages :: Spec
+spec_errorMessages = do
+  describe "Error messages" $ do
+    it "only shows first line when context spans multiple lines" $ do
+      let config = "foo \\\n  1"
+          decoder =
+            KDL.document . KDL.nodeWith "foo" $ do
+              _ <- KDL.arg @Int
+              _ <- KDL.children $ KDL.argAt @Int "bar"
+              pure ()
+      KDL.decodeWith decoder config `shouldSatisfy` decodeErrorMsgSnapshot Nothing
 
 newtype FixtureKdlFile = FixtureKdlFile FilePath
 

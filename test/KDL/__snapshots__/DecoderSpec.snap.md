@@ -61,3 +61,27 @@ test_config.kdl:1:39:
 1 │ foo; foo { bar { baz; baz; baz; baz a=1; }; }
   │                                       ^
 ```
+
+## decodeDocWith ≫ fails with user-defined error
+
+```
+At: foo #0 > arg #0
+└─ Got negative number: -1.0
+```
+
+## decodeDocWith ≫ shows context in deeply nested error
+
+```
+At: foo #1 > bar #0 > baz #3 > prop a
+└─ Expected string, got: 1
+```
+
+## Error messages ≫ only shows first line when context spans multiple lines
+
+```
+<input>:1:1:
+    • Expected node: bar
+  │
+1 │ foo \
+  │ ^^^^^
+```
