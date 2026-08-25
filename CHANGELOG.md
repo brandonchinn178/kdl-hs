@@ -1,3 +1,7 @@
+## v1.2.1
+
+* Improve error messages to include the source line where the error occurred
+
 ## v1.2.0
 
 * Add `Exception` instance to `DecodeError`
