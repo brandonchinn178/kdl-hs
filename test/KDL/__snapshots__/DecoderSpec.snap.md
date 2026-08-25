@@ -14,15 +14,21 @@ expecting children block, decimal point, end of node, exponent, or node prop or 
 ## decodeWith ≫ fails with user-defined error
 
 ```
-At: foo #0 > arg #0
-  Got negative number: -1.0
+<input>:1:5:
+    • Got negative number: -1.0
+  │
+1 │ foo -1
+  │     ^^
 ```
 
 ## decodeWith ≫ shows context in deeply nested error
 
 ```
-At: foo #1 > bar #0 > baz #3 > prop a
-  Expected string, got: 1
+<input>:1:39:
+    • Expected string, got: 1
+  │
+1 │ foo; foo { bar { baz; baz; baz; baz a=1; }; }
+  │                                       ^
 ```
 
 ## decodeFileWith ≫ fails with helpful error if parsing fails
@@ -39,15 +45,19 @@ expecting children block, decimal point, end of node, exponent, or node prop or 
 ## decodeFileWith ≫ fails with user-defined error
 
 ```
-Failed to decode test_config.kdl:
-At: foo #0 > arg #0
-  Got negative number: -1.0
+test_config.kdl:1:5:
+    • Got negative number: -1.0
+  │
+1 │ foo -1
+  │     ^^
 ```
 
 ## decodeFileWith ≫ shows context in deeply nested error
 
 ```
-Failed to decode test_config.kdl:
-At: foo #1 > bar #0 > baz #3 > prop a
-  Expected string, got: 1
+test_config.kdl:1:39:
+    • Expected string, got: 1
+  │
+1 │ foo; foo { bar { baz; baz; baz; baz a=1; }; }
+  │                                       ^
 ```

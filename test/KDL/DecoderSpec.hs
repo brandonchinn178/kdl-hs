@@ -110,6 +110,9 @@ spec_regressionTests = do
                   KDL.fail "Invalid username"
       KDL.decodeWith decoder config
         `shouldSatisfy` decodeErrorMsg
-          [ "At: user #1 > arg #0"
-          , "  Invalid username"
+          [ "<input>:1:30:"
+          , "    • Invalid username"
+          , "  │"
+          , "1 │ user a { foo { bar } }; user a1"
+          , "  │                              ^^"
           ]
