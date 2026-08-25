@@ -45,6 +45,7 @@ library
       base < 5
     , containers
     , data-default
+    , filepath
     , megaparsec
     , prettyprinter >= 1.7.0
     , scientific
