@@ -132,7 +132,6 @@ import Data.Char (
 import Data.Default (Default (..))
 import Data.Either (isRight)
 import Data.Foldable (foldlM, traverse_)
-import Data.Foldable qualified as Seq (toList)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Maybe (catMaybes, fromMaybe, isJust)
 import Data.Scientific (Scientific)
@@ -181,6 +180,9 @@ import Prelude hiding (span)
 
 #if !MIN_VERSION_base(4,20,0)
 import Data.Foldable (foldl')
+#endif
+#if !MIN_VERSION_containers(0,8,1)
+import Data.Foldable qualified as Seq (toList)
 #endif
 
 data ParseConfig = ParseConfig
